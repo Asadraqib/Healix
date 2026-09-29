@@ -1,0 +1,29 @@
+server:
+  port: 8084
+  error:
+    include-message: always
+    include-exception: true
+spring:
+  application:
+    name: auth-service
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      max-lifetime: 240000
+  flyway:
+    default-schema: auth
+    create-schemas: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiry-hours: 12

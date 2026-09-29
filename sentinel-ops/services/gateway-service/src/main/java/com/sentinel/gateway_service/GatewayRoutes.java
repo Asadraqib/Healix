@@ -16,6 +16,7 @@ public class GatewayRoutes {
     routes.put("/api/parts", "http://localhost:8082");
     routes.put("/api/suppliers", "http://localhost:8082");
     routes.put("/api/ai", "http://localhost:8083");
+    routes.put("/api/auth", "http://localhost:8084");
     return routes;
   }
 }
