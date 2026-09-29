@@ -1,5 +1,6 @@
 package com.sentinel.maintenance_service;
 
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.*;
@@ -34,7 +35,7 @@ public class MaintenanceController {
   }
 
   @GetMapping("/suppliers")
-  public List<SupplierRow> suppliers() {
-    return repo.findAllSuppliers();
+  public Map<String, Object> suppliers() {
+      return Map.of("suppliers", Map.of("items", repo.findAllSuppliers()));
   }
 }

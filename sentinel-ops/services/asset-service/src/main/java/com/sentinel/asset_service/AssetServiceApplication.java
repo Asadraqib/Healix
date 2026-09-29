@@ -2,12 +2,12 @@ package com.sentinel.asset_service;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableScheduling
 public class AssetServiceApplication {
-
-	public static void main(String[] args) {
-		SpringApplication.run(AssetServiceApplication.class, args);
-	}
-
+  public static void main(String[] args) {
+    SpringApplication.run(AssetServiceApplication.class, args);
+  }
 }

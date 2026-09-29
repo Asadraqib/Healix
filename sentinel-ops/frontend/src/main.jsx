@@ -484,7 +484,8 @@ function App() {
     }
   };
 
-  const handleCreateWorkOrder = async (assetId = selectedMachine) => {
+  const handleCreateWorkOrder = async (assetIdArg) => {
+    const assetId = typeof assetIdArg === 'string' ? assetIdArg : selectedMachine;
     if (!liveApiEnabled) {
       notify('New work order form is ready', 'success');
       return;
