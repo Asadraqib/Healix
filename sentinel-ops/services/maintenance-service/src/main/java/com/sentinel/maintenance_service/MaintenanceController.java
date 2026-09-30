@@ -9,11 +9,15 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api")
 public class MaintenanceController {
   private final MaintenanceRepository repo;
-  public MaintenanceController(MaintenanceRepository repo) { this.repo = repo; }
+
+  public MaintenanceController(MaintenanceRepository repo) {
+    this.repo = repo;
+  }
 
   @GetMapping("/work-orders")
-  public List<WorkOrderResponse> workOrders() {
-    return repo.findAllWorkOrders().stream().map(WorkOrderResponse::from).toList();
+  public List<WorkOrderResponse> workOrders(@RequestParam(required = false) String assetId) {
+    var rows = (assetId != null && !assetId.isBlank()) ? repo.findByAsset(assetId) : repo.findAllWorkOrders();
+    return rows.stream().map(WorkOrderResponse::from).toList();
   }
 
   @PostMapping("/work-orders")
@@ -36,6 +40,6 @@ public class MaintenanceController {
 
   @GetMapping("/suppliers")
   public Map<String, Object> suppliers() {
-      return Map.of("suppliers", Map.of("items", repo.findAllSuppliers()));
+    return Map.of("suppliers", Map.of("items", repo.findAllSuppliers()));
   }
 }

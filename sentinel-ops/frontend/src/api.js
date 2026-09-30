@@ -103,6 +103,15 @@ export async function loadGatewaySnapshot() {
   return snapshot;
 }
 
+export function loadDashboardSummary() {
+  return request('/dashboard/summary');
+}
+
+export function loadWorkOrdersForAsset(assetId) {
+  return request(`/work-orders?assetId=${encodeURIComponent(assetId)}`)
+    .then((data) => listFrom(data, ['workOrders', 'items']).map(normalizeWorkOrder));
+}
+
 export function postOverride(machineId, value, holdSeconds = 30) {
   return request(`/simulation/${encodeURIComponent(machineId)}/override`, {
     method: 'POST',
@@ -123,7 +132,7 @@ export function diagnoseAsset(payload) {
 }
 
 export function subscribeToTelemetry(onReading, onStatus) {
-  if (!liveApiEnabled || typeof WebSocket === 'undefined') return () => {};
+  if (!liveApiEnabled || typeof WebSocket === 'undefined') return () => { };
 
   let socket;
   let reconnectTimer;

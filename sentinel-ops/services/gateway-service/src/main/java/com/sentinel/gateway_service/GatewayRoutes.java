@@ -11,6 +11,7 @@ public class GatewayRoutes {
   public Map<String, String> routeTable() {
     Map<String, String> routes = new LinkedHashMap<>();
     routes.put("/api/assets", "http://localhost:8081");
+    routes.put("/api/dashboard", "http://localhost:8081");
     routes.put("/api/simulation", "http://localhost:8081");
     routes.put("/api/work-orders", "http://localhost:8082");
     routes.put("/api/parts", "http://localhost:8082");

@@ -7,14 +7,20 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class MaintenanceRepository {
   private final JdbcClient jdbc;
-  public MaintenanceRepository(JdbcClient jdbc) { this.jdbc = jdbc; }
 
-  private static final String WO_COLS =
-      "id, asset_id, title, priority, status, owner, due, source";
-  private static final String PART_COLS =
-      "id, name, on_hand, reorder_level, unit_cost, supplier_id";
-  private static final String SUPPLIER_COLS =
-      "id, name, contact, phone, rating";
+  public MaintenanceRepository(JdbcClient jdbc) {
+    this.jdbc = jdbc;
+  }
+
+  private static final String WO_COLS = "id, asset_id, title, priority, status, owner, due, source";
+  private static final String PART_COLS = "id, name, on_hand, reorder_level, unit_cost, supplier_id";
+  private static final String SUPPLIER_COLS = "id, name, contact, phone, rating";
+
+  public java.util.List<WorkOrderRow> findByAsset(String assetId) {
+    return jdbc.sql("SELECT " + WO_COLS + " FROM work_orders WHERE asset_id = :assetId ORDER BY created_at DESC")
+        .param("assetId", assetId)
+        .query(WorkOrderRow.class).list();
+  }
 
   public List<WorkOrderRow> findAllWorkOrders() {
     return jdbc.sql("SELECT " + WO_COLS + " FROM work_orders ORDER BY created_at DESC")

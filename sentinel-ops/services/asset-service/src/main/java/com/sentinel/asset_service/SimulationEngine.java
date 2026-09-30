@@ -13,6 +13,8 @@ public class SimulationEngine {
   private final Map<String, AssetState> states = new ConcurrentHashMap<>();
   private final java.util.Random random = new java.util.Random();
   private int tickCount = 0;
+  private final java.util.Deque<Integer> fleetHealthHistory = new java.util.concurrent.ConcurrentLinkedDeque<>();
+  private static final int HISTORY_LIMIT = 60; // ~4 minutes of ticks — enough for a live-looking trend
 
   public SimulationEngine(AssetRepository repo) {
     this.repo = repo;
@@ -41,7 +43,8 @@ public class SimulationEngine {
   public List<AssetState> tick() {
     tickCount++;
     for (AssetState s : states.values()) {
-      if (Instant.now().isBefore(s.holdUntil)) continue; // manual override active, skip drift
+      if (Instant.now().isBefore(s.holdUntil))
+        continue; // manual override active, skip drift
 
       double driftScale = "DRV-001".equals(s.id) ? 1.6 : 0.8; // conveyor drive drifts harder → shows Warning
       s.temperature += (random.nextGaussian()) * driftScale;
@@ -62,19 +65,29 @@ public class SimulationEngine {
         repo.updateTelemetry(s.id, s.temperature, s.vibration, s.load, s.power, s.health, s.status);
       }
     }
+    int avgHealth = (int) states.values().stream().mapToInt(s -> s.health).average().orElse(0);
+    fleetHealthHistory.addLast(avgHealth);
+    while (fleetHealthHistory.size() > HISTORY_LIMIT)
+      fleetHealthHistory.pollFirst();
     return List.copyOf(states.values());
+  }
+
+  public java.util.List<Integer> healthHistory() {
+    return java.util.List.copyOf(fleetHealthHistory);
   }
 
   public void override(String id, double value, int holdSeconds) {
     AssetState s = states.get(id);
-    if (s == null) return;
+    if (s == null)
+      return;
     s.temperature = value;
     s.holdUntil = Instant.now().plusSeconds(holdSeconds);
   }
 
   public void reset(String id) {
     AssetState s = states.get(id);
-    if (s == null) return;
+    if (s == null)
+      return;
     s.temperature = s.baseTemperature;
     s.vibration = s.baseVibration;
     s.load = s.baseLoad;

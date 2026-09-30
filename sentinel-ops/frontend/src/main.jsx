@@ -10,6 +10,8 @@ import {
   postOverride,
   resetSimulation,
   subscribeToTelemetry,
+  loadDashboardSummary,
+  loadWorkOrdersForAsset,
 } from './api';
 
 const colors = {
@@ -262,6 +264,17 @@ function Dashboard({ machines, onNavigate, onTrigger }) {
   const [windowName, setWindowName] = useState('Last 24 hours');
   const active = machines.filter((m) => m.status !== 'Offline').length;
   const avgHealth = Math.round(machines.reduce((sum, m) => sum + m.health, 0) / machines.length);
+  const alarmMachines = machines.filter((m) => m.status === 'Warning' || m.status === 'Fault');
+  const criticalCount = machines.filter((m) => m.status === 'Fault').length;
+  const warningCount = machines.filter((m) => m.status === 'Warning').length;
+  const [summary, setSummary] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => loadDashboardSummary().then((s) => { if (!cancelled) setSummary(s); }).catch(() => { });
+    load();
+    const id = setInterval(load, 6000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
   return <div className="page">
     <PageHeader eyebrow="Operations center / Sunday, September 27, 2026" title="Good morning, Asad" description="Here’s the current health of your industrial fleet." action="Create work order" onAction={() => onNavigate('work-orders')} />
     <div className="toolbar-row">
@@ -271,7 +284,7 @@ function Dashboard({ machines, onNavigate, onTrigger }) {
     <div className="kpi-grid">
       <KpiCard eyebrow="Assets online" value={`${active} / ${machines.length}`} detail="All systems operational" tone="blue" icon="machine" trend="+1.2%" />
       <KpiCard eyebrow="Fleet health" value={`${avgHealth}%`} detail="Above target of 85%" tone="green" icon="gauge" trend="+3.4%"><div className="mini-progress"><span style={{ width: `${avgHealth}%` }} /></div></KpiCard>
-      <KpiCard eyebrow="Active alarms" value="2" detail="1 critical · 1 warning" tone="amber" icon="alert" trend="-2 today" />
+      <KpiCard eyebrow="Active alarms" value={`${alarmMachines.length}`} detail={`${criticalCount} critical · ${warningCount} warning`} tone="amber" icon="alert" trend={`${alarmMachines.length} now`} />
       <KpiCard eyebrow="Today's OEE" value="87.4%" detail="Across 2 production lines" tone="purple" icon="activity" trend="+4.1%" />
     </div>
     <div className="dashboard-grid">
@@ -291,7 +304,13 @@ function Dashboard({ machines, onNavigate, onTrigger }) {
     <div className="dashboard-grid lower">
       <section className="panel chart-panel">
         <div className="panel-head"><div><h2>Fleet health trend</h2><p>Average score by hour</p></div><button className="select-btn small">{windowName}<Icon name="down" size={14} /></button></div>
-        <div className="large-chart"><div className="y-labels"><span>100</span><span>90</span><span>80</span><span>70</span></div><div className="chart-area"><div className="grid-lines"><i /><i /><i /><i /></div><svg viewBox="0 0 640 190" preserveAspectRatio="none"><defs><linearGradient id="healthFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#1677c8" stopOpacity=".18" /><stop offset="1" stopColor="#1677c8" stopOpacity="0" /></linearGradient></defs><path d="M0 118 C55 110 68 124 110 100 S170 91 208 105 S260 84 303 85 S360 77 402 79 S460 60 498 67 S560 57 640 42 L640 190 L0 190 Z" fill="url(#healthFill)" /><path d="M0 118 C55 110 68 124 110 100 S170 91 208 105 S260 84 303 85 S360 77 402 79 S460 60 498 67 S560 57 640 42" fill="none" stroke="#1677c8" strokeWidth="3" strokeLinecap="round" /></svg><div className="x-labels"><span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>Now</span></div></div></div>
+        <div className="large-chart">
+          <div className="y-labels"><span>100</span><span>90</span><span>80</span><span>70</span></div>
+          <div className="chart-area">
+            <div className="grid-lines"><i /><i /><i /><i /></div>
+            <Sparkline values={summary?.healthTrend?.length ? summary.healthTrend : [avgHealth]} color="#1677c8" height={190} width={640} fill />
+          </div>
+        </div>
       </section>
       <section className="panel insights-panel">
         <div className="panel-head"><div><h2>AI insights</h2><p>Evidence-based recommendations</p></div><span className="ai-mark"><Icon name="sparkles" size={16} /> Copilot</span></div>
@@ -333,11 +352,48 @@ function AssetDetail({ machine, onTrigger, onReset }) {
 }
 
 function TelemetryTab({ machine }) {
-  return <div className="detail-tab-content"><div className="telemetry-chart"><div className="panel-head"><div><h3>Temperature</h3><p>Last 60 readings</p></div><strong>{machine.temperature}°C</strong></div><Sparkline values={machine.trend.concat([machine.temperature])} color={machine.accent} height={145} width={400} fill /></div><div className="reading-table"><div><span>Timestamp</span><strong>Now</strong></div><div><span>Temperature</span><strong>{machine.temperature} °C</strong></div><div><span>Vibration</span><strong>{machine.vibration} mm/s</strong></div><div><span>Power draw</span><strong>{machine.power} kW</strong></div></div></div>;
+  const points = machine.trend && machine.trend.length ? machine.trend.slice(-6) : [machine.temperature];
+  const rows = points.map((v, i) => ({
+    label: i === points.length - 1 ? 'Now' : `${(points.length - 1 - i) * 4}s ago`,
+    value: v,
+  }));
+  return <div className="detail-tab-content">
+    <div className="telemetry-chart">
+      <div className="panel-head"><div><h3>Temperature</h3><p>Last {points.length} readings</p></div><strong>{machine.temperature}°C</strong></div>
+      <Sparkline values={points} color={machine.accent} height={145} width={400} fill />
+    </div>
+    <div className="reading-table">
+      {rows.map((r, i) => <div key={i}><span>{r.label}</span><strong>{(r.value.toFixed ? r.value.toFixed(1) : r.value)} °C</strong></div>)}
+      <div><span>Vibration</span><strong>{machine.vibration} mm/s</strong></div>
+      <div><span>Power draw</span><strong>{machine.power} kW</strong></div>
+    </div>
+  </div>;
 }
 
 function MaintenanceTab({ machine }) {
-  return <div className="detail-tab-content"><div className="maintenance-summary"><div className="maintenance-icon"><Icon name="wrench" size={20} /></div><div><span>Next planned service</span><strong>Oct 14, 2026</strong><small>18 days remaining</small></div></div><h3>Recent activity</h3><div className="timeline"><div><span /><p><strong>WO-1041</strong> · Cooling filter scheduled<small>Sep 25, 2026 · Preventive plan</small></p></div><div><span /><p><strong>Inspection passed</strong><small>Sep 18, 2026 · A. Mehta</small></p></div><div><span /><p><strong>Health baseline recalculated</strong><small>Sep 12, 2026 · System</small></p></div></div></div>;
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    loadWorkOrdersForAsset(machine.id)
+      .then((data) => { if (!cancelled) setHistory(data); })
+      .catch(() => { if (!cancelled) setHistory([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [machine.id]);
+
+  return <div className="detail-tab-content">
+    <div className="maintenance-summary">
+      <div className="maintenance-icon"><Icon name="wrench" size={20} /></div>
+      <div><span>Open work orders</span><strong>{history.filter((w) => w.status !== 'Completed').length}</strong><small>{history.length} total on record</small></div>
+    </div>
+    <h3>Recent activity</h3>
+    <div className="timeline">
+      {loading && <div><span /><p><strong>Loading…</strong></p></div>}
+      {!loading && history.length === 0 && <div><span /><p><strong>No maintenance history yet</strong><small>Work orders for {machine.id} will appear here</small></p></div>}
+      {history.map((wo) => <div key={wo.id}><span /><p><strong>{wo.id}</strong> · {wo.title}<small>{wo.due} · {wo.source}</small></p></div>)}
+    </div>
+  </div>;
 }
 
 function Telemetry({ machines, onSelect, onTrigger }) {
