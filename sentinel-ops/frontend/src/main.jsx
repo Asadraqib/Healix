@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import {
+  apiBaseUrl,
   createWorkOrder,
   diagnoseAsset,
   liveApiEnabled,
@@ -452,6 +453,36 @@ function App() {
   const [noticeCount, setNoticeCount] = useState(2);
   const [dataMode, setDataMode] = useState(liveApiEnabled ? 'connecting' : 'demo');
   const [streamStatus, setStreamStatus] = useState(liveApiEnabled ? 'connecting' : 'demo');
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
+  useEffect(() => {
+    fetch(`${apiBaseUrl}/auth/me`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => setUser(data))
+      .catch(() => setUser(null))
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    try {
+      const res = await fetch(`${apiBaseUrl}/auth/login`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm),
+      });
+      if (!res.ok) throw new Error('Invalid email or password');
+      const me = await fetch(`${apiBaseUrl}/auth/me`, { credentials: 'include' }).then((r) => r.json());
+      setUser(me);
+    } catch (err) {
+      setLoginError(err.message);
+    }
+  };
 
   useEffect(() => {
     if (liveApiEnabled) return undefined;
@@ -583,6 +614,22 @@ function App() {
     if (activePage === 'ai') return <AiDiagnosis machines={machines} onCreate={handleCreateWorkOrder} onDiagnose={handleDiagnose} />;
     return <Settings />;
   }, [activePage, machines, selectedMachine, workOrders, partsState, suppliersState, dataMode]);
+
+  if (!authChecked) return <div className="page">Loading…</div>;
+
+  if (!user) {
+    return (
+      <div className="page" style={{ maxWidth: 360, margin: '80px auto' }}>
+        <h1>Sign in</h1>
+        <form onSubmit={handleLogin}>
+          <input placeholder="Email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} />
+          <input placeholder="Password" type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} />
+          <button className="primary-btn" type="submit">Log in</button>
+        </form>
+        {loginError && <p style={{ color: 'red' }}>{loginError}</p>}
+      </div>
+    );
+  }
 
   return <div className="app-shell">
     <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Icon name="grid" size={19} /></button><div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><strong>sentinel</strong><small>OPERATIONS</small></div></div><div className="top-search"><Icon name="search" size={16} /><input placeholder="Search assets, work orders, suppliers..." /><kbd>⌘ K</kbd></div><div className="top-actions"><span className="environment-pill"><span className={`live-pulse ${dataMode === 'fallback' ? 'offline-pulse' : ''}`} />{dataMode === 'live' ? 'Live API' : dataMode === 'connecting' ? 'Connecting' : 'Simulation'}</span><button className="top-icon" onClick={() => { setNoticeCount(0); notify('You’re all caught up', 'success'); }}><Icon name="bell" size={18} />{noticeCount > 0 && <b>{noticeCount}</b>}</button><span className="top-divider" /><button className="profile"><span className="avatar">AR</span><span><strong>Asad Raqib</strong><small>Administrator</small></span><Icon name="down" size={13} /></button></div></header>

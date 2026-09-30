@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api")
 public class MaintenanceController {
@@ -21,7 +23,7 @@ public class MaintenanceController {
   }
 
   @PostMapping("/work-orders")
-  public WorkOrderResponse createWorkOrder(@RequestBody WorkOrderRequest req) {
+  public WorkOrderResponse createWorkOrder(@Valid @RequestBody WorkOrderRequest req) {
     String id = "WO-" + (1000 + (int) (Math.random() * 9000));
     WorkOrderRow row = new WorkOrderRow(id, req.assetId(),
         req.title() != null ? req.title() : "Maintenance work order",

@@ -1,3 +1,11 @@
 package com.sentinel.maintenance_service;
 
-public record WorkOrderRequest(String assetId, String title, String priority, String owner, String due) {}
+import jakarta.validation.constraints.NotBlank;
+
+public record WorkOrderRequest(
+    @NotBlank String assetId,
+    @NotBlank String title,
+    String priority,
+    String owner,
+    String due
+) {}
