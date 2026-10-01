@@ -484,6 +484,21 @@ function App() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Logout request failed');
+      setUser(null);
+      setLoginForm({ email: '', password: '' });
+      setActivePage('overview');
+    } catch (error) {
+      notify(`Could not log out. ${error.message}`, 'warning');
+    }
+  };
+
   useEffect(() => {
     if (liveApiEnabled) return undefined;
     const interval = setInterval(() => {
@@ -498,7 +513,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!liveApiEnabled) return undefined;
+    if (!liveApiEnabled || !authChecked || !user) return undefined;
     let cancelled = false;
     loadGatewaySnapshot()
       .then((snapshot) => {
@@ -520,10 +535,10 @@ function App() {
         notify(`Gateway unavailable — showing demo data. ${error.message}`, 'warning');
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [authChecked, user]);
 
   useEffect(() => {
-    if (!liveApiEnabled) return undefined;
+    if (!liveApiEnabled || !authChecked || !user) return undefined;
     return subscribeToTelemetry((reading) => {
       const machineId = reading.machineId || reading.assetId;
       if (!machineId) return;
@@ -532,7 +547,7 @@ function App() {
       setStreamStatus(status);
       if (status === 'connected') setDataMode('live');
     });
-  }, []);
+  }, [authChecked, user]);
 
   const notify = (message, tone = 'success') => {
     setToast({ message, tone });
@@ -632,7 +647,18 @@ function App() {
   }
 
   return <div className="app-shell">
-    <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Icon name="grid" size={19} /></button><div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><strong>sentinel</strong><small>OPERATIONS</small></div></div><div className="top-search"><Icon name="search" size={16} /><input placeholder="Search assets, work orders, suppliers..." /><kbd>⌘ K</kbd></div><div className="top-actions"><span className="environment-pill"><span className={`live-pulse ${dataMode === 'fallback' ? 'offline-pulse' : ''}`} />{dataMode === 'live' ? 'Live API' : dataMode === 'connecting' ? 'Connecting' : 'Simulation'}</span><button className="top-icon" onClick={() => { setNoticeCount(0); notify('You’re all caught up', 'success'); }}><Icon name="bell" size={18} />{noticeCount > 0 && <b>{noticeCount}</b>}</button><span className="top-divider" /><button className="profile"><span className="avatar">AR</span><span><strong>Asad Raqib</strong><small>Administrator</small></span><Icon name="down" size={13} /></button></div></header>
+    <header className="topbar">
+      <button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Icon name="grid" size={19} /></button>
+      <div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><strong>sentinel</strong><small>OPERATIONS</small></div></div>
+      <div className="top-search"><Icon name="search" size={16} /><input placeholder="Search assets, work orders, suppliers..." /><kbd>⌘ K</kbd></div>
+      <div className="top-actions">
+        <span className="environment-pill"><span className={`live-pulse ${dataMode === 'fallback' ? 'offline-pulse' : ''}`} />{dataMode === 'live' ? 'Live API' : dataMode === 'connecting' ? 'Connecting' : 'Simulation'}</span>
+        <button className="top-icon" onClick={() => { setNoticeCount(0); notify('You’re all caught up', 'success'); }}><Icon name="bell" size={18} />{noticeCount > 0 && <b>{noticeCount}</b>}</button>
+        <span className="top-divider" />
+        <button className="profile"><span className="avatar">AR</span><span><strong>Asad Raqib</strong><small>Administrator</small></span><Icon name="down" size={13} /></button>
+        <button className="logout-btn" onClick={handleLogout}>Log out</button>
+      </div>
+    </header>
     <div className="body-layout"><aside className={`sidebar ${mobileNav ? 'open' : ''}`}><div className="workspace-switcher"><span className="workspace-icon">S</span><div><strong>Sentinel Manufacturing</strong><span>Plant 01 · Workspace</span></div><Icon name="down" size={14} /></div><nav>{['Workspace', 'Operations', 'Intelligence', 'System'].map((group) => <div className="nav-group" key={group}><span className="nav-label">{group}</span>{nav.filter((item) => item.group === group).map((item) => <button key={item.id} className={activePage === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><Icon name={item.icon} size={18} /><span>{item.label}</span>{item.live && <span className="nav-live" />}{item.ai && <span className="nav-ai">AI</span>}{item.count && <em>{item.count}</em>}</button>)}</div>)}</nav><div className="sidebar-footer"><div className="data-status"><span className={`live-pulse ${streamStatus === 'error' ? 'offline-pulse' : ''}`} /><div><strong>{dataMode === 'live' ? 'Gateway connected' : dataMode === 'fallback' ? 'Demo mode active' : 'All services healthy'}</strong><small>{dataMode === 'live' ? `WebSocket · ${streamStatus}` : dataMode === 'fallback' ? 'Set VITE_API_BASE_URL to connect' : 'Local simulated telemetry'}</small></div></div><div className="sidebar-help"><div className="help-icon">?</div><div><strong>Need a hand?</strong><span>Open help center</span></div><Icon name="arrow" size={14} /></div></div></aside><main className="main-content">{page}</main></div>
     {toast && <div className={`toast ${toast.tone}`}><div className="toast-icon"><Icon name={toast.tone === 'warning' ? 'alert' : 'check'} size={17} /></div><div><strong>{toast.tone === 'warning' ? 'Predictive alert' : 'Action completed'}</strong><span>{toast.message}</span></div><button onClick={() => setToast(null)}>×</button></div>}
   </div>;

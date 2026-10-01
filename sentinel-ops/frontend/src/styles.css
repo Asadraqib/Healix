@@ -52,6 +52,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .top-icon b { position: absolute; top: 0; right: 0; width: 15px; height: 15px; display: grid; place-items: center; border-radius: 100%; background: var(--red); color: white; font-size: 9px; border: 2px solid white; }
 .top-divider { height: 28px; width: 1px; background: var(--line); }
 .profile { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; text-align: left; color: var(--ink); padding: 0; }
+.logout-btn { height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 4px; background: white; color: var(--muted); font-size: 11px; }
+.logout-btn:hover { border-color: var(--red); color: var(--red); background: var(--red-pale); }
 .profile strong { display: block; font-size: 12px; font-weight: 600; }.profile small { display: block; color: var(--subtle); font-size: 10px; margin-top: 2px; }.profile > .icon { margin-left: 5px; color: var(--subtle); }
 .avatar { width: 31px; height: 31px; border-radius: 50%; display: grid; place-items: center; color: #0b568a; background: #d9efff; font-size: 10px; font-weight: 700; }
 .mobile-menu { display: none; border: 0; color: var(--muted); background: transparent; padding: 4px; }

@@ -1,16 +1,29 @@
 package com.sentinel.gateway_service;
 
+import java.util.List;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.core.Ordered;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 @Configuration
-public class CorsConfig implements WebMvcConfigurer {
-  @Override
-  public void addCorsMappings(CorsRegistry registry) {
-    registry.addMapping("/api/**")
-        .allowedOriginPatterns("http://localhost:*")
-        .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-        .allowCredentials(true);
+public class CorsConfig {
+  @Bean
+  public FilterRegistrationBean<CorsFilter> corsFilterRegistration() {
+    CorsConfiguration configuration = new CorsConfiguration();
+    configuration.setAllowedOriginPatterns(List.of("http://localhost:*"));
+    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    configuration.setAllowedHeaders(List.of("*"));
+    configuration.setAllowCredentials(true);
+
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/api/**", configuration);
+
+    FilterRegistrationBean<CorsFilter> registration = new FilterRegistrationBean<>(new CorsFilter(source));
+    registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+    return registration;
   }
 }
