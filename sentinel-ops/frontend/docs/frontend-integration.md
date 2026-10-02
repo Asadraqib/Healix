@@ -1,59 +1,49 @@
-# Frontend ↔ Spring Boot Gateway Contract
+# Frontend and Spring Boot Integration
 
-The frontend runs in demo mode by default. To enable live mode, copy `.env.example` to `.env`, set `VITE_API_BASE_URL` to the Spring Cloud Gateway base URL, and restart Vite:
+Run Vite from this directory with `npm run dev`. The checked-in example uses the existing local service addresses:
 
-```bash
+```dotenv
 VITE_API_BASE_URL=http://localhost:8080/api
-VITE_WS_URL=ws://localhost:8080/ws/simulation
+VITE_WS_URL=ws://localhost:8081/ws/simulation
 ```
 
-When `VITE_API_BASE_URL` is present, the top-right environment badge switches from **Simulation** to **Live API**. The frontend loads the gateway snapshot and subscribes to WebSocket telemetry. If the gateway is unavailable, it keeps the demo UI alive and shows **Demo mode active** rather than rendering an empty application.
+The header switches between `SIMULATION` and `LIVE` without restarting Vite. LIVE mode uses the Spring Cloud Gateway for REST and connects directly to the asset service WebSocket because the gateway does not proxy WebSockets. Use `localhost` rather than `127.0.0.1`; the backend CORS configuration allows `http://localhost:*`.
 
-## REST endpoints used
+## REST contract
 
-| Method | Path | Frontend use |
+| Method | Path | Frontend behavior |
 |---|---|---|
-| `GET` | `/api/assets` | Fleet cards, asset list, dashboard |
-| `GET` | `/api/work-orders` | Work-order table and overview |
-| `GET` | `/api/parts` | Parts and inventory page |
-| `GET` | `/api/suppliers` | Supplier directory |
-| `POST` | `/api/simulation/{machineId}/override` | Manual sensor override |
+| `GET` | `/api/auth/me` | Read the current cookie session |
+| `POST` | `/api/auth/login` | Sign in and receive the HttpOnly `sentinel_token` cookie |
+| `POST` | `/api/auth/logout` | Clear the cookie session |
+| `GET` | `/api/assets` | Load asset records |
+| `GET` | `/api/dashboard/summary` | Load live fleet totals, health, alarms, and trend |
+| `GET` | `/api/work-orders` | Load maintenance work orders |
+| `POST` | `/api/work-orders` | Create with `assetId`, `title`, optional `priority`, `owner`, and `due` |
+| `GET` | `/api/parts` | Load inventory records |
+| `GET` | `/api/suppliers` | Load supplier records |
+| `POST` | `/api/simulation/{machineId}/override` | Send `value` and optional `holdSeconds` |
 | `POST` | `/api/simulation/{machineId}/reset` | Reset a simulated machine |
-| `POST` | `/api/work-orders` | Create a maintenance work order |
-| `POST` | `/api/ai/diagnose` | Grounded diagnosis chat |
+| `POST` | `/api/ai/diagnose` | Send `machineId` and `question` to the AI service |
 
-The list endpoints may return either a raw array or an envelope:
+All browser REST calls include credentials; JWTs are not stored in JavaScript. The app maps service DTOs into the existing UI model and does not invent missing telemetry fields. The current services do not expose work-order status updates or inventory reorder operations, so those actions remain simulation-only.
 
-```json
-{ "assets": [] }
-```
+## Accounts and role access
 
-The frontend accepts the following aliases while the services stabilize:
+The account menu provides sign-out through `POST /api/auth/logout`. Registration sends only the supported `name`, `email`, and `password` fields to `POST /api/auth/register`; the auth service assigns new accounts the `VIEWER` role. The client does not offer self-selection of elevated roles. An administrator must assign an elevated role through a trusted server-side process.
 
-- asset identity: `id`, `machineId`, or `assetId`
-- health: `health`, `healthScore`
-- machine state: `status`, `state`
-- work order identity: `id`, `workOrderId`, or `number`
-- inventory quantity: `onHand`, `quantityOnHand`
-- inventory threshold: `reorder`, `reorderLevel`
+Navigation and action controls are filtered by the role returned from `/api/auth/me`. The current gateway validates that a session exists but does not enforce per-role authorization on REST routes. These client-side restrictions are therefore usability controls, not a security boundary; enforce the same role matrix in the backend before using it for sensitive operations.
 
-## WebSocket message
+| Role | Available workspace | Mutations |
+|---|---|---|
+| `ADMIN` | All pages | All supported actions |
+| `RELIABILITY_ENGINEER` | All pages | Overrides, resets, work orders, inventory simulation, and AI diagnosis |
+| `TECHNICIAN` | Dashboard, simulation, assets, work orders, inventory | Overrides, resets, and work-order actions |
+| `EXECUTIVE_VIEWER` | Dashboard, assets, work orders, suppliers, architecture | Read-only |
+| `VIEWER` | Dashboard and assets | Read-only |
 
-Connect the gateway route to `/ws/simulation`. Each message should contain at least:
+Only `ADMIN` and `VIEWER` are currently issued by the auth service; the other roles are supported by the client if provisioned by a trusted backend process.
 
-```json
-{
-  "machineId": "DRV-001",
-  "sensorType": "temperature",
-  "value": 74.8,
-  "healthScore": 74,
-  "status": "WARNING",
-  "recordedAt": "2026-09-27T15:42:00Z"
-}
-```
+## Telemetry WebSocket
 
-Supported sensor types include `temperature`, `vibration`, `load`, and `power`. The frontend updates the corresponding metric, bounded trend history, health score, and status without refreshing the page. The connection automatically retries every three seconds after a disconnect.
-
-## Auth
-
-The API adapter sends `credentials: include`, so it works with an HttpOnly cookie-based session. For the JWT gateway design in the implementation guide, add the access-token injection in `src/api.js` or replace `request()` with the project’s auth client. The browser should not receive or store service credentials.
+Connect to `ws://localhost:8081/ws/simulation`. Messages include `machineId`, `sensorType`, `value`, `healthScore`, `status`, and `recordedAt`. The client reconnects after disconnects. The current scheduler publishes temperature messages; the override endpoint changes temperature only.
