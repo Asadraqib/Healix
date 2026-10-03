@@ -15,7 +15,7 @@ import { useSimulation } from './context/SimulationContext';
 import { canAccessTab } from './services/accessControl';
 
 const AppContent: React.FC = () => {
-  const { userRole } = useSimulation();
+  const { userRole, currentUser, isSwitchingMode } = useSimulation();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
     window.matchMedia('(max-width: 639px)').matches
@@ -57,6 +57,14 @@ const AppContent: React.FC = () => {
         onNavigateTab={handleNavigateTab}
       />
 
+      {!currentUser ? (
+        <main className="flex flex-1 items-center justify-center p-6">
+          <div className="max-w-md rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <h1 className="text-xl font-bold">Sign in to Healix</h1>
+            <p className="mt-3 text-sm text-slate-600">{isSwitchingMode ? 'Checking your session…' : 'Use the Sign in button above to access your machinery dashboard. LIVE and SIMULATION data are available after signing in.'}</p>
+          </div>
+        </main>
+      ) : <>
       {/* Autonomous Closed-Loop Event Banner (Pops up on self-healing triggers) */}
       <ClosedLoopBanner onViewWorkOrder={handleViewWorkOrder} />
 
@@ -109,6 +117,7 @@ const AppContent: React.FC = () => {
           {activeTab === 'architecture' && <ArchitectureInspector />}
         </main>
       </div>
+      </>}
     </div>
   );
 };

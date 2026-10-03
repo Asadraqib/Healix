@@ -1,47 +1,26 @@
 package com.sentinel.maintenance_service;
-
-import java.util.Map;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import org.springframework.web.bind.annotation.*;
-
-import jakarta.validation.Valid;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 @RestController
 @RequestMapping("/api")
 public class MaintenanceController {
-  private final MaintenanceRepository repo;
-
-  public MaintenanceController(MaintenanceRepository repo) {
-    this.repo = repo;
-  }
-
-  @GetMapping("/work-orders")
-  public List<WorkOrderResponse> workOrders(@RequestParam(required = false) String assetId) {
-    var rows = (assetId != null && !assetId.isBlank()) ? repo.findByAsset(assetId) : repo.findAllWorkOrders();
-    return rows.stream().map(WorkOrderResponse::from).toList();
-  }
-
-  @PostMapping("/work-orders")
-  public WorkOrderResponse createWorkOrder(@Valid @RequestBody WorkOrderRequest req) {
-    String id = "WO-" + (1000 + (int) (Math.random() * 9000));
-    WorkOrderRow row = new WorkOrderRow(id, req.assetId(),
-        req.title() != null ? req.title() : "Maintenance work order",
-        req.priority() != null ? req.priority() : "Medium",
-        "Scheduled",
-        req.owner() != null ? req.owner() : "Unassigned",
-        req.due() != null ? req.due() : "Not scheduled",
-        "Dashboard");
-    return WorkOrderResponse.from(repo.insertWorkOrder(row));
-  }
-
-  @GetMapping("/parts")
-  public List<PartRow> parts() {
-    return repo.findAllParts();
-  }
-
-  @GetMapping("/suppliers")
-  public Map<String, Object> suppliers() {
-    return Map.of("suppliers", Map.of("items", repo.findAllSuppliers()));
-  }
+ private final WorkflowService workflow; private final MaintenanceRepository repo; private final JdbcClient db;
+ public MaintenanceController(WorkflowService workflow,MaintenanceRepository repo,JdbcClient db) {this.workflow=workflow;this.repo=repo;this.db=db;}
+ @GetMapping("/work-orders") public List<Map<String,Object>> orders(@RequestParam(required=false) String assetId) {return workflow.orders().stream().filter(w -> assetId==null || assetId.equals(w.get("asset"))).toList();}
+ @PostMapping("/work-orders") public Map<String,Object> create(@RequestBody Map<String,Object> input) {return workflow.create(input);}
+ @PatchMapping("/work-orders/{id}") public Map<String,Object> update(@PathVariable String id,@RequestBody Map<String,Object> input) {return workflow.update(id,input);}
+ @GetMapping("/parts") public List<Map<String,Object>> parts() {return workflow.parts();}
+ @GetMapping("/suppliers") public Map<String,Object> suppliers() {return Map.of("suppliers",Map.of("items",repo.findAllSuppliers()));}
+ @GetMapping("/parts/{id}/movements") public List<Map<String,Object>> movements(@PathVariable String id) {return db.sql("SELECT * FROM inventory_movements WHERE part_id=:id ORDER BY created_at DESC").param("id",id).query().listOfRows();}
+ @PostMapping("/parts/{id}/adjust") public void adjust(@PathVariable String id,@RequestBody Map<String,Object> input) {workflow.adjust(id,quantity(input,"delta"),"ADJUSTMENT",null);}
+ @PostMapping("/parts/{id}/consume") public void consume(@PathVariable String id,@RequestBody Map<String,Object> input) {int q=quantity(input,"quantity");if(q<1) WorkflowService.bad("Positive quantity required"); String wo=WorkflowService.text(input,"workOrderId",""); if(wo.isBlank()) WorkflowService.bad("Work order required"); workflow.adjust(id,-q,"WORK_ORDER",wo);}
+ @PostMapping("/parts/{id}/reorder") public void reorder(@PathVariable String id,@RequestBody Map<String,Object> input) {workflow.reorder(id,quantity(input,"quantity"));}
+ @GetMapping("/suppliers/orders") public List<Map<String,Object>> reorders() {return workflow.rows("supplier_orders");}
+ @GetMapping("/alarms") public List<Map<String,Object>> alarms() {return workflow.rows("alarms");}
+ @GetMapping("/notifications") public List<Map<String,Object>> notifications() {return workflow.rows("notifications");}
+ @PatchMapping("/notifications/{id}/read") public void read(@PathVariable long id) {db.sql("UPDATE notifications SET is_read=true WHERE id=:id").param("id",id).update();}
+ @DeleteMapping("/notifications") public void clear() {db.sql("DELETE FROM notifications").update();}
+ private int quantity(Map<String,Object> input,String key) {Object n=input.get(key); if(!(n instanceof Number) || !Double.isFinite(((Number)n).doubleValue()) || ((Number)n).doubleValue()!=((Number)n).intValue()) WorkflowService.bad("Integer quantity required"); return ((Number)n).intValue();}
 }

@@ -17,6 +17,11 @@ export interface LiveAssetDto {
   secondary: string;
   production: string;
   trend: number[];
+  sensors?: import('../types').SensorReading[];
+  lastSeenAt?: string;
+  telemetrySource?: string;
+  rpm?: number;
+  productionCount?: number;
 }
 
 export interface LiveWorkOrderDto {
@@ -28,6 +33,11 @@ export interface LiveWorkOrderDto {
   owner: string;
   due: string;
   source: string;
+  description?: string;
+  createdAt?: string;
+  resolvedAt?: string;
+  recommendedAction?: string;
+  triggerReadings?: unknown;
 }
 
 export interface LivePartDto {
@@ -37,6 +47,9 @@ export interface LivePartDto {
   reorderLevel: number;
   unitCost: number;
   supplierId: string;
+  sku?: string;
+  category?: string;
+  compatibleAssets?: string | string[];
 }
 
 export interface LiveSupplierDto {
@@ -76,11 +89,19 @@ export interface TelemetryMessage {
   healthScore: number;
   status: string;
   recordedAt: string;
+  sensorId?: string;
+  source?: string;
 }
 
-const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+export interface AiResult { answer?: string; explanation?: string; riskLevel?: string; recommendedChecks?: string[]; title?: string; description?: string; priority?: import('../types').WorkOrderSeverity; suggestedParts?: string[]; recommendedAction?: string; sources: string[]; }
+
+const configuredApiBaseUrl = (import.meta.env.DEV ? '' : import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const apiBaseUrl = configuredApiBaseUrl.replace(/\/api$/, '');
-const telemetryUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8081/ws/simulation';
+const configuredTelemetryUrl = import.meta.env.DEV ? '/ws/simulation' : import.meta.env.VITE_WS_URL || '/ws/simulation';
+const resolvedTelemetryUrl = new URL(configuredTelemetryUrl, window.location.href);
+if (resolvedTelemetryUrl.protocol === 'http:') resolvedTelemetryUrl.protocol = 'ws:';
+if (resolvedTelemetryUrl.protocol === 'https:') resolvedTelemetryUrl.protocol = 'wss:';
+const telemetryUrl = resolvedTelemetryUrl.toString();
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -97,8 +118,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await response.text();
     if (response.status === 401) message = 'Sign in is required to access the live services.';
     try {
-      const payload = JSON.parse(body) as { message?: string; error?: string };
-      if (response.status !== 401) message = payload.message || payload.error || message;
+      const payload = JSON.parse(body) as { message?: string; error?: string; detail?: string };
+      if (response.status !== 401) message = payload.message || payload.detail || payload.error || message;
     } catch {
       if (body && response.status !== 401) message = body;
     }
@@ -132,6 +153,10 @@ export const liveApi = {
     return request<void>('/api/auth/logout', { method: 'POST' });
   },
 
+  getAssets() {
+    return request<LiveAssetDto[]>('/api/assets');
+  },
+
   async getSnapshot(): Promise<LiveSnapshot> {
     const [assets, workOrders, parts, supplierEnvelope] = await Promise.all([
       request<LiveAssetDto[]>('/api/assets'),
@@ -147,7 +172,7 @@ export const liveApi = {
     return request<LiveDashboardSummary>('/api/dashboard/summary');
   },
 
-  createWorkOrder(input: { assetId: string; title: string; priority?: string; owner?: string; due?: string }) {
+  createWorkOrder(input: { assetId: string; title: string; priority?: string; owner?: string; due?: string; description?: string; recommendedAction?: string }) {
     return request<LiveWorkOrderDto>('/api/work-orders', {
       method: 'POST',
       body: JSON.stringify(input)
@@ -168,6 +193,20 @@ export const liveApi = {
     );
   },
 
+  updateWorkOrder(id: string, input: { status?: string; owner?: string }) {
+    return request<LiveWorkOrderDto>(`/api/work-orders/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) });
+  },
+  notifications() { return request<Record<string, unknown>[]>('/api/notifications'); },
+  readNotification(id: string) { return request<void>(`/api/notifications/${id}/read`, { method: 'PATCH' }); },
+  clearNotifications() { return request<void>('/api/notifications', { method: 'DELETE' }); },
+  adjustPart(id: string, delta: number) { return request<void>(`/api/parts/${id}/adjust`, { method: 'POST', body: JSON.stringify({ delta }) }); },
+  consumePart(id: string, quantity: number, workOrderId: string) { return request<void>(`/api/parts/${id}/consume`, { method: 'POST', body: JSON.stringify({ quantity, workOrderId }) }); },
+  reorderPart(id: string, quantity: number) { return request<void>(`/api/parts/${id}/reorder`, { method: 'POST', body: JSON.stringify({ quantity }) }); },
+  movements(id: string) { return request<Record<string, unknown>[]>(`/api/parts/${id}/movements`); },
+  supplierOrders() { return request<Record<string, unknown>[]>('/api/suppliers/orders'); },
+  ai(action: 'analyze' | 'forecast' | 'draft-work-order' | 'diagnose', machineId: string, question: string, mode: string, context: unknown) {
+    return request<AiResult>(`/api/ai/${action}`, { method: 'POST', headers: { 'X-Healix-Mode': mode }, body: JSON.stringify({ machineId, question, mode, context }) });
+  },
   diagnose(machineId: string, question: string) {
     return request<{ answer: string; machineId: string; sources: string[] }>(
       '/api/ai/diagnose',

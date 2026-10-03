@@ -1,0 +1,13 @@
+
+# Local secrets and build output
+.env
+.env.*
+!.env.example
+**/.env.properties
+**/target/
+**/node_modules/
+**/venv/
+**/.venv/
+**/__pycache__/
+
+.runtime/

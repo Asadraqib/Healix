@@ -8,6 +8,8 @@ export interface SensorReading {
   baseline?: number;
   criticalThreshold?: number;
   unit: string;
+  rawValue?: number;
+  lastSeenAt?: string;
   history: number[]; // last 30 data points
 }
 
@@ -21,6 +23,9 @@ export interface Asset {
   status: AssetStatus;
   machineClass: string;
   sensors: SensorReading[];
+  lastSeenAt?: string;
+  telemetrySource?: string;
+  connectionState?: 'CONNECTED' | 'DELAYED' | 'DISCONNECTED';
   runningHours?: number;
   lastMaintenance?: string;
   assignedEngineer?: string;
@@ -106,6 +111,7 @@ export interface NotificationItem {
   message: string;
   assetId?: string;
   workOrderId?: string;
+  partId?: string;
   read: boolean;
 }
 

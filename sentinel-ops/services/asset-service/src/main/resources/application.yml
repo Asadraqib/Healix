@@ -3,6 +3,9 @@ server:
   error:
     include-message: always
     include-exception: true
+telemetry:
+  generator:
+    enabled: ${TELEMETRY_GENERATOR_ENABLED:true}
 spring:
   application:
     name: asset-service

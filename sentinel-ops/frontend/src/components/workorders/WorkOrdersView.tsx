@@ -1,4 +1,4 @@
-import React, { FormEvent, useState } from 'react';
+import React, { FormEvent, useEffect, useState } from 'react';
 import {
   Wrench,
   CheckCircle2,
@@ -27,7 +27,7 @@ interface WorkOrdersViewProps {
 }
 
 export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, targetWorkOrderId }) => {
-  const { workOrders, updateWorkOrderStatus, parts, resetAssetToBaseline, assets, mode, createWorkOrder, userRole } = useSimulation();
+  const { workOrders, updateWorkOrderStatus, parts, resetAssetToBaseline, assets, mode, createWorkOrder, assignWorkOrder, userRole } = useSimulation();
   const canManageWorkOrders = canPerform(userRole, 'updateWorkOrder');
 
   const [searchQuery, setSearchQuery] = useState(targetWorkOrderId || '');
@@ -44,6 +44,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
+  useEffect(() => {setSearchQuery(targetWorkOrderId ?? '');setSelectedOrder(targetWorkOrderId ? workOrders.find(w => w.id === targetWorkOrderId) ?? null : null);},[targetWorkOrderId]);
+  useEffect(() => {setSelectedOrder(null);},[mode]);
   const filteredOrders = workOrders.filter((wo) => {
     const matchesSearch =
       wo.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -57,9 +59,8 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
   });
 
   const handleResolveOrder = (order: WorkOrder) => {
-    if (mode === 'LIVE') return;
     updateWorkOrderStatus(order.id, 'RESOLVED');
-    resetAssetToBaseline(order.assetId);
+    if (mode === 'SIMULATION') resetAssetToBaseline(order.assetId);
   };
 
   const handleCreateOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -88,6 +89,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
   return (
     <div className="space-y-6">
       
+      {selectedOrder && canManageWorkOrders && <form className="bg-white border rounded-xl p-4 flex flex-wrap gap-3 text-xs" onSubmit={e => {e.preventDefault();const data=new FormData(e.currentTarget);void assignWorkOrder(selectedOrder.id,String(data.get('owner'))).catch(error=>setCreateError(error.message));}}><span className="font-bold">{selectedOrder.id}</span><input name="owner" required placeholder="Assigned worker" defaultValue={selectedOrder.assignedTechnician} className="border rounded p-2"/><button className="bg-blue-700 text-white rounded px-3">Assign worker</button><select value={workOrders.find(w=>w.id===selectedOrder.id)?.status} onChange={e=>updateWorkOrderStatus(selectedOrder.id,e.target.value as WorkOrderStatus)} className="border rounded p-2">{['AUTO_GENERATED','ASSIGNED','SCHEDULED','IN_PROGRESS','RESOLVED'].map(status=><option key={status}>{status}</option>)}</select>{createError&&<p role="alert" className="text-rose-700">{createError}</p>}</form>}
       {/* Header Banner */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -214,7 +216,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {mode === 'LIVE' || !canManageWorkOrders ? (
+                      {!canManageWorkOrders ? (
                         <span className="text-[10px] text-slate-400">Updates unavailable</span>
                       ) : wo.status !== 'RESOLVED' ? (
                         <button

@@ -39,7 +39,25 @@ public class AuthFilter implements Filter {
       return;
     }
     try {
-      Jwts.parser().verifyWith((javax.crypto.SecretKey) key).build().parseSignedClaims(token);
+      var claims = Jwts.parser().verifyWith((javax.crypto.SecretKey) key).build().parseSignedClaims(token).getPayload();
+      String role = String.valueOf(claims.get("role"));
+      boolean write = !Set.of("GET", "HEAD", "OPTIONS").contains(request.getMethod());
+      boolean engineer = Set.of("ADMIN", "RELIABILITY_ENGINEER").contains(role);
+      boolean operator = engineer || "TECHNICIAN".equals(role);
+      boolean allowed = path.startsWith("/api/notifications") || (!write && !path.startsWith("/api/ai"))
+          || (path.startsWith("/api/ai") ? engineer
+          : path.startsWith("/api/parts") ? (path.endsWith("/consume") ? operator : engineer) : operator);
+      if (!allowed) {
+        response.setStatus(403);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"message\":\"Your role does not permit this action\"}");
+        return;
+      }
+      if (write && "SIMULATION".equalsIgnoreCase(request.getHeader("X-Healix-Mode")) && !path.startsWith("/api/ai")) {
+        response.setStatus(409);
+        response.getWriter().write("{\"message\":\"Simulation writes must remain in temporary browser state\"}");
+        return;
+      }
     } catch (Exception e) {
       unauthorized(response, "Invalid or expired session");
       return;

@@ -1,0 +1,107 @@
+name: healix
+
+x-database-environment: &database-environment
+  DB_URL: jdbc:postgresql://postgres:5432/healix
+  DB_USER: healix
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env}
+
+x-java-service: &java-service
+  restart: unless-stopped
+  init: true
+  mem_limit: 768m
+  networks: [healix]
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: healix
+      POSTGRES_USER: healix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [healix]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  asset-service:
+    <<: *java-service
+    build: ./services/asset-service
+    environment:
+      <<: *database-environment
+      TELEMETRY_GENERATOR_ENABLED: ${TELEMETRY_GENERATOR_ENABLED:-true}
+
+  maintenance-service:
+    <<: *java-service
+    build: ./services/maintenance-service
+    environment:
+      <<: *database-environment
+      ASSET_SERVICE_URL: http://asset-service:8081
+
+  auth-service:
+    <<: *java-service
+    build: ./services/auth-service
+    environment:
+      <<: *database-environment
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to at least 32 ASCII characters in the root .env}
+
+  ai-service:
+    build: ./services/ai-service
+    restart: unless-stopped
+    init: true
+    mem_limit: 512m
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-qwen/qwen3.8-27b}
+      GATEWAY_URL: http://gateway-service:8080
+    networks: [healix]
+
+  gateway-service:
+    build: ./services/gateway-service
+    restart: unless-stopped
+    init: true
+    mem_limit: 768m
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to at least 32 ASCII characters in the root .env}
+      ASSET_SERVICE_URL: http://asset-service:8081
+      MAINTENANCE_SERVICE_URL: http://maintenance-service:8082
+      AUTH_SERVICE_URL: http://auth-service:8084
+      AI_SERVICE_URL: http://ai-service:8083
+    ports:
+      - '127.0.0.1:${GATEWAY_PORT:-8080}:8080'
+    networks: [healix]
+    depends_on:
+      asset-service:
+        condition: service_healthy
+      maintenance-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${FRONTEND_PORT:-8088}:8080'
+    networks: [healix]
+    depends_on:
+      gateway-service:
+        condition: service_healthy
+      asset-service:
+        condition: service_healthy
+
+networks:
+  healix:
+
+volumes:
+  postgres-data:
