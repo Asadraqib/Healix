@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, MapPin, Sliders, ArrowUpRight } from 'lucide-react';
 import { useSimulation } from '../../context/SimulationContext';
 import { StatusBadge } from '../common/StatusBadge';
@@ -10,16 +10,20 @@ import { canAccessTab } from '../../services/accessControl';
 interface FleetViewProps {
   onNavigateTab: (tab: string) => void;
   selectedAssetId?: string | null;
+  onClearSelection?: () => void;
 }
 
-export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAssetId }) => {
-  const { assets, userRole } = useSimulation();
+export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAssetId, onClearSelection }) => {
+  const { assets, userRole, mode } = useSimulation();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'HEALTHY' | 'DEGRADED' | 'DOWN'>('ALL');
   const [modalAsset, setModalAsset] = useState<Asset | null>(
     selectedAssetId ? assets.find((a) => a.id === selectedAssetId) || null : null
   );
+
+  useEffect(() => { if(selectedAssetId) setModalAsset(assets.find(a => a.id === selectedAssetId) ?? null); }, [selectedAssetId]);
+  useEffect(() => { setModalAsset(previous => previous ? assets.find(a => a.id === previous.id) ?? null : null); }, [assets]);
 
   const filteredAssets = assets.filter((asset) => {
     const matchesSearch =
@@ -165,7 +169,7 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
                   <ArrowUpRight className="w-3 h-3" />
                 </button>
 
-                {canAccessTab(userRole, 'simulation') && <button
+                {mode === 'SIMULATION' && canAccessTab(userRole, 'simulation') && <button
                   onClick={() => onNavigateTab('simulation')}
                   className="py-1 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1 border border-blue-200"
                 >
@@ -181,7 +185,7 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
       {/* Asset Detail Modal */}
       <AssetDetailModal
         asset={modalAsset}
-        onClose={() => setModalAsset(null)}
+        onClose={() => {setModalAsset(null);onClearSelection?.();}}
         onNavigateToAi={() => onNavigateTab('ai-rag')}
         onNavigateToSimulation={() => onNavigateTab('simulation')}
       />

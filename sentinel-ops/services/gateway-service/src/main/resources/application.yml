@@ -1,6 +1,10 @@
 server:
   port: 8080
 spring:
+  servlet:
+    multipart:
+      # Forward original upload bytes; the AI service validates files and its 10 MB limit.
+      enabled: false
   config:
     import: optional:file:.env[.properties]
 app:

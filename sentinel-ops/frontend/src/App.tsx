@@ -12,10 +12,13 @@ import { InventoryView } from './components/inventory/InventoryView';
 import { SuppliersView } from './components/suppliers/SuppliersView';
 import { ArchitectureInspector } from './components/architecture/ArchitectureInspector';
 import { useSimulation } from './context/SimulationContext';
+import { RecordDetail } from './components/search/RecordDetail';
+import type { SearchResult } from './services/searchRecords';
 import { canAccessTab } from './services/accessControl';
 
 const AppContent: React.FC = () => {
-  const { userRole, currentUser, isSwitchingMode } = useSimulation();
+  const { userRole, currentUser, isSwitchingMode, mode } = useSimulation();
+  const [detailRecord,setDetailRecord]=useState<SearchResult|null>(null);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
     window.matchMedia('(max-width: 639px)').matches
@@ -31,11 +34,18 @@ const AppContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!canAccessTab(userRole, activeTab)) setActiveTab('dashboard');
-  }, [activeTab, userRole]);
+    if (!canAccessTab(userRole, activeTab) || (mode === 'LIVE' && ['simulation','architecture'].includes(activeTab))) setActiveTab('dashboard');
+  }, [activeTab, userRole, mode]);
 
+  useEffect(()=>{setDetailRecord(null);setSelectedAssetId(null);setTargetWorkOrderId(null);},[mode,currentUser?.id]);
+  const openRecord=(record:SearchResult)=>{
+    if(!canAccessTab(userRole,record.kind))return;
+    if(record.kind==='fleet'){setSelectedAssetId(record.id);setActiveTab('fleet');}
+    else if(record.kind==='workorders'){setTargetWorkOrderId(record.id);setActiveTab('workorders');}
+    else setDetailRecord(record);
+  };
   const handleNavigateTab = (tab: string) => {
-    if (!canAccessTab(userRole, tab)) return;
+    if (!canAccessTab(userRole, tab) || (mode === 'LIVE' && ['simulation','architecture'].includes(tab))) return;
     setActiveTab(tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -55,6 +65,7 @@ const AppContent: React.FC = () => {
       {/* Top Global Navigation Bar */}
       <Header
         onNavigateTab={handleNavigateTab}
+        onOpenRecord={openRecord}
       />
 
       {!currentUser ? (
@@ -65,6 +76,7 @@ const AppContent: React.FC = () => {
           </div>
         </main>
       ) : <>
+      {detailRecord&&<RecordDetail record={detailRecord} onClose={()=>setDetailRecord(null)}/>}
       {/* Autonomous Closed-Loop Event Banner (Pops up on self-healing triggers) */}
       <ClosedLoopBanner onViewWorkOrder={handleViewWorkOrder} />
 
@@ -88,7 +100,7 @@ const AppContent: React.FC = () => {
             />
           )}
 
-          {activeTab === 'simulation' && (
+          {mode === 'SIMULATION' && activeTab === 'simulation' && (
             <SimulationView onNavigateTab={handleNavigateTab} />
           )}
 
@@ -96,6 +108,7 @@ const AppContent: React.FC = () => {
             <FleetView
               onNavigateTab={handleNavigateTab}
               selectedAssetId={selectedAssetId}
+              onClearSelection={() => setSelectedAssetId(null)}
             />
           )}
 
@@ -103,6 +116,7 @@ const AppContent: React.FC = () => {
             <WorkOrdersView
               onNavigateTab={handleNavigateTab}
               targetWorkOrderId={targetWorkOrderId}
+              onClearSelection={() => setTargetWorkOrderId(null)}
             />
           )}
 
@@ -114,7 +128,7 @@ const AppContent: React.FC = () => {
 
           {activeTab === 'suppliers' && <SuppliersView />}
 
-          {activeTab === 'architecture' && <ArchitectureInspector />}
+          {mode === 'SIMULATION' && activeTab === 'architecture' && <ArchitectureInspector />}
         </main>
       </div>
       </>}

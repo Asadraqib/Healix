@@ -16,7 +16,7 @@ public class DashboardController {
     long alarms = states.stream().filter(s -> "Warning".equals(s.status) || "Fault".equals(s.status)).count();
     int avgHealth = (int) states.stream().mapToInt(s -> s.health).average().orElse(0);
     return Map.of(
-        "assetsOnline", total,
+        "assetsOnline", states.stream().filter(s -> s.lastSeenAt != null && s.lastSeenAt.isAfter(java.time.Instant.now().minusSeconds(15))).count(),
         "assetsTotal", total,
         "fleetHealth", avgHealth,
         "activeAlarms", alarms,

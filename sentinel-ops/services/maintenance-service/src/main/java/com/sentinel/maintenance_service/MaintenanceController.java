@@ -13,11 +13,13 @@ public class MaintenanceController {
  @PatchMapping("/work-orders/{id}") public Map<String,Object> update(@PathVariable String id,@RequestBody Map<String,Object> input) {return workflow.update(id,input);}
  @GetMapping("/parts") public List<Map<String,Object>> parts() {return workflow.parts();}
  @GetMapping("/suppliers") public Map<String,Object> suppliers() {return Map.of("suppliers",Map.of("items",repo.findAllSuppliers()));}
+ @GetMapping("/parts/movements") public List<Map<String,Object>> allMovements() {return db.sql("SELECT * FROM inventory_movements ORDER BY created_at DESC LIMIT 2000").query().listOfRows();}
  @GetMapping("/parts/{id}/movements") public List<Map<String,Object>> movements(@PathVariable String id) {return db.sql("SELECT * FROM inventory_movements WHERE part_id=:id ORDER BY created_at DESC").param("id",id).query().listOfRows();}
  @PostMapping("/parts/{id}/adjust") public void adjust(@PathVariable String id,@RequestBody Map<String,Object> input) {workflow.adjust(id,quantity(input,"delta"),"ADJUSTMENT",null);}
  @PostMapping("/parts/{id}/consume") public void consume(@PathVariable String id,@RequestBody Map<String,Object> input) {int q=quantity(input,"quantity");if(q<1) WorkflowService.bad("Positive quantity required"); String wo=WorkflowService.text(input,"workOrderId",""); if(wo.isBlank()) WorkflowService.bad("Work order required"); workflow.adjust(id,-q,"WORK_ORDER",wo);}
  @PostMapping("/parts/{id}/reorder") public void reorder(@PathVariable String id,@RequestBody Map<String,Object> input) {workflow.reorder(id,quantity(input,"quantity"));}
  @GetMapping("/suppliers/orders") public List<Map<String,Object>> reorders() {return workflow.rows("supplier_orders");}
+ @PostMapping("/suppliers/orders/{id}/receive") public void receive(@PathVariable long id) {workflow.receive(id);}
  @GetMapping("/alarms") public List<Map<String,Object>> alarms() {return workflow.rows("alarms");}
  @GetMapping("/notifications") public List<Map<String,Object>> notifications() {return workflow.rows("notifications");}
  @PatchMapping("/notifications/{id}/read") public void read(@PathVariable long id) {db.sql("UPDATE notifications SET is_read=true WHERE id=:id").param("id",id).update();}

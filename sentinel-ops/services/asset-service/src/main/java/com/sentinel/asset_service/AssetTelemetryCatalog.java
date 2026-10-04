@@ -1,6 +1,5 @@
 package com.sentinel.asset_service;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 /** Shared telemetry contract mirrored by the browser simulation's fleet fixtures. */

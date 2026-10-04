@@ -46,7 +46,7 @@ public class AuthFilter implements Filter {
       boolean operator = engineer || "TECHNICIAN".equals(role);
       boolean allowed = path.startsWith("/api/notifications") || (!write && !path.startsWith("/api/ai"))
           || (path.startsWith("/api/ai") ? engineer
-          : path.startsWith("/api/parts") ? (path.endsWith("/consume") ? operator : engineer) : operator);
+          : (path.startsWith("/api/parts") || path.startsWith("/api/suppliers")) ? (path.endsWith("/consume") ? operator : engineer) : operator);
       if (!allowed) {
         response.setStatus(403);
         response.setContentType("application/json");

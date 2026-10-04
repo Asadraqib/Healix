@@ -11,7 +11,7 @@ import org.springframework.http.HttpStatus;
 public class WorkflowService {
   private final JdbcClient db;
   public WorkflowService(JdbcClient db) { this.db = db; }
-  public List<Map<String,Object>> orders() { return db.sql("SELECT id,asset_id AS asset,title,priority,status,owner,due,source,description,created_at AS \"createdAt\",resolved_at AS \"resolvedAt\",trigger_readings AS \"triggerReadings\",recommended_action AS \"recommendedAction\" FROM work_orders ORDER BY created_at DESC").query().listOfRows(); }
+  public List<Map<String,Object>> orders() { return db.sql("SELECT id,asset_id AS asset,title,priority,status,owner,due,source,description,created_at AS \"createdAt\",resolved_at AS \"resolvedAt\",incident_id AS \"incidentId\",trigger_readings::text AS \"triggerReadings\",recommended_action AS \"recommendedAction\" FROM work_orders ORDER BY created_at DESC").query().listOfRows(); }
   public List<Map<String,Object>> parts() { return db.sql("SELECT id,name,on_hand AS \"onHand\",reorder_level AS \"reorderLevel\",unit_cost AS \"unitCost\",supplier_id AS \"supplierId\",sku,category,array_to_json(compatible_assets)::text AS \"compatibleAssets\" FROM parts ORDER BY id").query().listOfRows(); }
   public List<Map<String,Object>> rows(String table) { return db.sql("SELECT * FROM " + table + " ORDER BY created_at DESC").query().listOfRows(); }
   public Map<String,Object> order(String id) { return orders().stream().filter(w -> id.equals(w.get("id"))).findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Work order not found")); }
@@ -25,6 +25,7 @@ public class WorkflowService {
     if(db.sql("SELECT count(*) FROM asset.assets WHERE id=:id").param("id",asset).query(Integer.class).single()==0) bad("Unknown asset");
     String priority=text(input,"priority","MEDIUM").toUpperCase();
     if(!Set.of("LOW","MEDIUM","HIGH","CRITICAL").contains(priority)) bad("Invalid priority");
+    if(text(input,"owner","Unassigned").length()>80) bad("Owner exceeds 80 characters");
     String id="WO-"+UUID.randomUUID().toString().substring(0,12);
     db.sql("INSERT INTO work_orders(id,asset_id,title,priority,status,owner,due,source,description,recommended_action) VALUES(:id,:asset,:title,:priority,'SCHEDULED',:owner,:due,'Dashboard',:description,:action)").param("id",id).param("asset",asset).param("title",title).param("priority",priority).param("owner",text(input,"owner","Unassigned")).param("due",text(input,"due","Not scheduled")).param("description",text(input,"description","")).param("action",text(input,"recommendedAction","")).update();
     notify("WORK_ORDER","Work order created",title,asset,id,null); return order(id);
@@ -58,8 +59,21 @@ public class WorkflowService {
   @Transactional
   public void reorder(String id,int quantity) {
     if(quantity<1 || quantity>100000) bad("Reorder quantity must be between 1 and 100000");
+    if(db.sql("SELECT count(*) FROM parts WHERE id=:id").param("id",id).query(Integer.class).single()==0) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Part not found");
     int count=db.sql("INSERT INTO supplier_orders(part_id,supplier_id,quantity,estimated_cost) SELECT id,supplier_id,:q,unit_cost*:q FROM parts WHERE id=:id ON CONFLICT DO NOTHING").param("q",quantity).param("id",id).update();
     if(count>0) notify("INVENTORY","Supplier reorder suggested",quantity+" units of "+id+"; procurement review required",null,null,id);
+  }
+  @Transactional
+  public void receive(long id) {
+    var matches=db.sql("SELECT * FROM supplier_orders WHERE id=:id FOR UPDATE").param("id",id).query().listOfRows();
+    if(matches.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Supplier order not found");
+    var order=matches.getFirst();
+    if("RECEIVED".equals(order.get("status"))) return;
+    if(!"SUGGESTED".equals(order.get("status"))) bad("This order cannot be received");
+    // Mark received before applying the movement, so low-stock checks can suggest a new order.
+    db.sql("UPDATE supplier_orders SET status='RECEIVED' WHERE id=:id").param("id",id).update();
+    adjust(String.valueOf(order.get("part_id")),((Number)order.get("quantity")).intValue(),"RECEIPT",null);
+    notify("INVENTORY","Supplier stock received","Order "+id+" was received",null,null,String.valueOf(order.get("part_id")));
   }
   public static String text(Map<String,Object> input,String key,String fallback) { Object value=input.get(key); return value==null?fallback:value.toString().trim(); }
   public static void bad(String message) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST,message); }

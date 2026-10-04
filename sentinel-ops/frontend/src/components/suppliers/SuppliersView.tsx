@@ -1,28 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { RecordDetail } from '../search/RecordDetail';
+import type { SearchResult } from '../../services/searchRecords';
 import { Truck, Star, MapPin, Mail, Phone, ExternalLink, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useSimulation } from '../../context/SimulationContext';
 
 export const SuppliersView: React.FC = () => {
-  const { suppliers, mode } = useSimulation();
+  const { suppliers } = useSimulation();
+  const [selected, setSelected] = useState<SearchResult | null>(null);
 
   return (
     <div className="space-y-6">
       
       {/* Header Banner */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200/90 shadow-xs">
-        <div className="flex items-center gap-2">
-          <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold uppercase tracking-wider">
-            Supplier Service • GET /api/suppliers
-          </span>
-          <span className="text-xs font-mono text-gray-500">{mode === 'LIVE' ? 'Supplier records from maintenance service' : 'Tier 1 Industrial OEM Partners'}</span>
-        </div>
         <h1 className="text-2xl font-black text-gray-900 mt-1 tracking-tight">
-          OEM Vendor Directory & Supply Chain Integration
+          Suppliers
         </h1>
         <p className="text-xs text-gray-500 mt-1">
-          {mode === 'LIVE'
-            ? 'Supplier records include the service-provided name, contact, phone, and rating fields.'
-            : 'Connected supplier networks with automated EDI procurement channels for instant spare parts dispatch'}
+          Sample supplier directory. Verify authorization and compatibility before ordering.
         </p>
       </div>
 
@@ -85,12 +80,9 @@ export const SuppliersView: React.FC = () => {
             </div>
 
             <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
-              <span className={`px-2 py-0.5 rounded-full font-semibold flex items-center gap-1 ${mode === 'SIMULATION' ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-slate-100'}`}>
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                <span>{mode === 'SIMULATION' ? 'Demo connection' : 'Connection status not reported'}</span>
-              </span>
+              <span className="text-slate-500">Sample record</span>
 
-              <button className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
+              <button onClick={() => setSelected({kind:"suppliers",id:supplier.id,label:supplier.name,secondary:"Supplier directory"})} className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
                 <span>View Catalog</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
@@ -99,6 +91,7 @@ export const SuppliersView: React.FC = () => {
         ))}
       </div>
 
+      {selected && <RecordDetail record={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 };

@@ -7,6 +7,10 @@ telemetry:
   generator:
     enabled: ${TELEMETRY_GENERATOR_ENABLED:true}
 spring:
+  task:
+    scheduling:
+      pool:
+        size: 3
   application:
     name: asset-service
   config:

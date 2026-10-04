@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
+}
+
 @layer base {
   :root {
-    --font-sans: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    --font-sans: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
   }
 
   body {
@@ -55,3 +59,11 @@
 .animate-live-pulse {
   animation: live-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Shared typography and controls across the existing ERP views. */
+h1, h2, h3 { font-weight: 600; letter-spacing: -0.015em; }
+.font-black { font-weight: 650; }
+button, input, select, textarea { font-family: inherit; }
+button:not(:disabled) { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }

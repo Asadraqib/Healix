@@ -43,6 +43,8 @@ export interface WorkOrder {
   title: string;
   description?: string;
   aiRootCause?: string;
+  triggerReadings?: Record<string, number>;
+  incidentId?: string;
   aiConfidence?: number;
   partRequired?: string;
   partId?: string;

@@ -55,13 +55,31 @@ public class AssetRepository {
         return row;
     }
 
-    public void appendHistory(AssetState state) {
-        for (var sensor : AssetTelemetryCatalog.from(state)) {
-            jdbc.sql("INSERT INTO telemetry_readings(asset_id,sensor_type,sensor_name,value,unit,status,source,recorded_at) VALUES(:asset,:type,:name,:value,:unit,:status,:source,:at)")
-                .param("asset", state.id).param("type", sensor.type().toLowerCase()).param("name", sensor.name())
-                .param("value", sensor.currentValue()).param("unit", sensor.unit()).param("status", state.status)
-                .param("source", state.telemetrySource).param("at", java.sql.Timestamp.from(state.lastSeenAt)).update();
+    @org.springframework.transaction.annotation.Transactional
+    public void persistDemoSnapshots(List<AssetState> snapshot) {
+        var states=snapshot.stream().filter(s -> "GENERATED_DEMO".equals(s.telemetrySource)).toList();
+        if(states.isEmpty()) return;
+        var parameters=new java.util.LinkedHashMap<String,Object>();
+        var values=new java.util.StringJoiner(",");
+        for(int i=0;i<states.size();i++) {
+            var s=states.get(i);String n=Integer.toString(i);
+            values.add("(:id"+n+",:temp"+n+",:vib"+n+",:load"+n+",:power"+n+",:rpm"+n+",:production"+n+",:health"+n+",:status"+n+",:source"+n+",CAST(:at"+n+" AS timestamptz))");
+            parameters.put("id"+n,s.id);parameters.put("temp"+n,s.temperature);parameters.put("vib"+n,s.vibration);parameters.put("load"+n,s.load);parameters.put("power"+n,s.power);parameters.put("rpm"+n,s.rpm);parameters.put("production"+n,s.productionCount);parameters.put("health"+n,s.health);parameters.put("status"+n,s.status);parameters.put("source"+n,s.telemetrySource);parameters.put("at"+n,java.sql.Timestamp.from(s.lastSeenAt));
         }
+        jdbc.sql("UPDATE assets a SET temperature=v.temp,vibration=v.vib,load_pct=v.load_value,power_kw=v.power,rpm=v.rpm,production_count=v.production,health=v.health,status=v.status,telemetry_source=v.source,last_seen_at=v.at FROM (VALUES "+values+") AS v(id,temp,vib,load_value,power,rpm,production,health,status,source,at) WHERE a.id=v.id AND a.telemetry_source <> 'CONNECTED_MACHINE' AND a.last_seen_at <= v.at").params(parameters).update();
+        appendHistoryBatch(states);
+    }
+
+    public void appendHistory(AssetState state) { appendHistoryBatch(List.of(state)); }
+    private void appendHistoryBatch(List<AssetState> states) {
+        var parameters=new java.util.LinkedHashMap<String,Object>();
+        var values=new java.util.StringJoiner(",");int i=0;
+        for(var state:states) for(var sensor:AssetTelemetryCatalog.from(state)) {
+            String n=Integer.toString(i++);
+            values.add("(:asset"+n+",:type"+n+",:name"+n+",:value"+n+",:unit"+n+",:status"+n+",:source"+n+",CAST(:at"+n+" AS timestamptz))");
+            parameters.put("asset"+n,state.id);parameters.put("type"+n,sensor.type().toLowerCase());parameters.put("name"+n,sensor.name());parameters.put("value"+n,sensor.currentValue());parameters.put("unit"+n,sensor.unit());parameters.put("status"+n,state.status);parameters.put("source"+n,state.telemetrySource);parameters.put("at"+n,java.sql.Timestamp.from(state.lastSeenAt));
+        }
+        if(i>0)jdbc.sql("INSERT INTO telemetry_readings(asset_id,sensor_type,sensor_name,value,unit,status,source,recorded_at) VALUES "+values).params(parameters).update();
     }
 
     public List<Double> history(String assetId, String sensorName, int limit) {

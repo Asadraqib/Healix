@@ -10,25 +10,13 @@ import {
   RagDocumentChunk,
   WorkOrderSeverity
 } from '../types';
-import {
-  INITIAL_ASSETS,
-  INITIAL_WORK_ORDERS,
-  INITIAL_PARTS,
-  INITIAL_SUPPLIERS,
-} from '../data/mockData';
-import { liveApi, LiveDashboardSummary, LiveUserDto, TelemetryMessage, AiResult } from '../services/liveApi';
+import { captureSimulationRecords, evaluateSimulationFleet, failureReading } from '../services/simulationWorkflow';
+import { ApiError, liveApi, LiveDashboardSummary, LiveUserDto, TelemetryMessage, AiResult } from '../services/liveApi';
 import { mapLiveAssets, mapLiveParts, mapLiveSuppliers, mapLiveWorkOrders } from '../services/domainAdapters';
 import { canPerform } from '../services/accessControl';
 import { TelemetryStabilizer, TELEMETRY_CONFIG } from '../services/telemetryStabilizer';
 
 export type AppMode = 'SIMULATION' | 'LIVE';
-
-const SIMULATION_SEED = 0x5eed1234;
-
-const nextSeededValue = (seed: { current: number }) => {
-  seed.current = (1664525 * seed.current + 1013904223) >>> 0;
-  return seed.current / 4294967296;
-};
 
 const normalizeUserRole = (role: string): UserRole => {
   const normalized = role.toUpperCase();
@@ -90,16 +78,19 @@ interface SimulationContextType {
   dismissSelfHealingEvent: () => void;
   updateWorkOrderStatus: (workOrderId: string, newStatus: WorkOrder['status']) => void;
   createWorkOrder: (input: { assetId: string; title: string; priority: WorkOrderSeverity; owner?: string; due?: string; description?: string; recommendedAction?: string }) => Promise<void>;
-  reorderInventoryPart: (partId: string, quantity: number) => void;
+  reorderInventoryPart: (partId: string, quantity: number) => Promise<void>;
   runAiDiagnosticQuery: (assetId: string, userQuery: string) => Promise<{
     answer: string;
     sources: RagDocumentChunk[];
     sourceLabels?: string[];
     auditEntry?: AiAuditLog;
   }>;
-  runAi: (action: 'analyze' | 'forecast' | 'draft-work-order', assetId: string, question: string) => Promise<AiResult>;
+  runAi: (action: 'chat' | 'analyze' | 'forecast' | 'draft-work-order', assetId: string, question: string) => Promise<AiResult>;
   adjustInventoryPart: (partId: string, delta: number, workOrderId?: string) => Promise<void>;
   assignWorkOrder: (id: string, owner: string) => Promise<void>;
+  simulationSessionId: string;
+  alarms: Record<string, unknown>[];
+  receiveSupplierOrder: (id: string) => Promise<void>;
   stockMovements: Record<string, unknown>[];
   supplierOrders: Record<string, unknown>[];
   loadPartMovements: (partId: string) => Promise<void>;
@@ -117,7 +108,6 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [telemetryConnected, setTelemetryConnected] = useState(false);
   const [currentUser, setCurrentUser] = useState<LiveUserDto | null>(null);
   const [dashboardSummary, setDashboardSummary] = useState<LiveDashboardSummary | null>(null);
-  const simulationSeed = useRef(SIMULATION_SEED);
   const modeRequest = useRef(0);
   const stabilizer = useRef(new TelemetryStabilizer());
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -131,131 +121,60 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [recentSelfHealingEvent, setRecentSelfHealingEvent] = useState<SelfHealingEvent | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
+  const [simulationSessionId,setSimulationSessionId]=useState(()=>crypto.randomUUID());
+  const [alarms,setAlarms]=useState<Record<string, unknown>[]>([]);
   const [stockMovements, setStockMovements] = useState<Record<string, unknown>[]>([]);
   const [supplierOrders, setSupplierOrders] = useState<Record<string, unknown>[]>([]);
   const ordersRef = useRef(workOrders);
   ordersRef.current = workOrders;
-  const activeAlarmRef = useRef<Record<string, string>>({});
   const snapshotRef = useRef({ assets, workOrders, parts });
   snapshotRef.current = { assets, workOrders, parts };
-  const addNotice = (notice: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) => setNotifications(prev => [{ ...notice, id: crypto.randomUUID(), timestamp: new Date().toISOString(), read: false }, ...prev]);
+  const addNotice = (notice: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) => { const next=[{ ...notice, id: crypto.randomUUID(), timestamp: new Date().toISOString(), read: false }, ...noticesRef.current]; noticesRef.current=next; setNotifications(next); };
   const refreshOperational = async (requestId = modeRequest.current) => {
-    const [snapshot, notices, reorders] = await Promise.all([liveApi.getSnapshot(), liveApi.notifications(), liveApi.supplierOrders()]);
+    const [snapshot, notices, reorders, incidents, movements] = await Promise.all([liveApi.getSnapshot(), liveApi.notifications(), liveApi.supplierOrders(), liveApi.alarms(), liveApi.allMovements()]);
     if (requestId !== modeRequest.current) return;
     const fleet = mapLiveAssets(snapshot.assets);
     const directory = mapLiveSuppliers(snapshot.suppliers);
+    setAlarms(incidents);setStockMovements(movements);
     setWorkOrders(mapLiveWorkOrders(snapshot.workOrders, fleet));
     setParts(mapLiveParts(snapshot.parts, directory)); setSuppliers(directory); setSupplierOrders(reorders);
     setNotifications(notices.map(n => ({ id: String(n.id), timestamp: String(n.created_at), type: n.type as NotificationItem['type'], title: String(n.title), message: String(n.message), assetId: n.asset_id ? String(n.asset_id) : undefined, workOrderId: n.work_order_id ? String(n.work_order_id) : undefined, partId: n.part_id ? String(n.part_id) : undefined, read: Boolean(n.is_read) })));
   };
 
   // Keep track of which asset triggers have already generated an open ticket to prevent duplicate spam
-  const autoTriggerCooldownRef = useRef<Record<string, number>>({});
 
-  // Simulation loop tick every 2000ms
-  useEffect(() => {
-    if (!currentUser || !isSimulating || mode !== 'SIMULATION') return;
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-
-      // Check if override expired
-      if (activeOverride && now >= activeOverride.expiresAt) {
-        setActiveOverride(null);
-      }
-
-      setAssets((prevAssets) =>
-        prevAssets.map((asset) => {
-          let assetMaxSeverity = 0; // 0: healthy, 1: degraded, 2: critical
-          let triggeredSensorInfo: { name: string; value: number; threshold: number; unit: string } | null = null;
-
-          const updatedSensors = asset.sensors.map((sensor) => {
-            let newValue = sensor.currentValue;
-
-            // Is this sensor currently overridden?
-            if (activeOverride && activeOverride.assetId === asset.id && activeOverride.sensorId === sensor.id) {
-              newValue = activeOverride.value;
-            } else {
-              // Natural drift with bounded gaussian noise around baseline
-              const baseline = sensor.baseline ?? sensor.currentValue;
-              const noise = (nextSeededValue(simulationSeed) - 0.49) * (baseline * 0.015);
-              const restoringPull = (baseline - sensor.currentValue) * 0.06;
-              newValue = Math.max(0.1, Number((sensor.currentValue + noise + restoringPull).toFixed(2)));
-            }
-
-            // Append to history (keep 30 items)
-            const updatedHistory = [...sensor.history.slice(-29), newValue];
-
-            // Evaluate threshold
-            const hasThreshold = sensor.criticalThreshold !== undefined && sensor.baseline !== undefined;
-            const isExceeded = hasThreshold && (sensor.criticalThreshold! > sensor.baseline!
-              ? newValue >= sensor.criticalThreshold!
-              : newValue <= sensor.criticalThreshold!);
-
-            if (isExceeded) {
-              assetMaxSeverity = 2; // Critical
-              triggeredSensorInfo = {
-                name: sensor.name,
-                value: newValue,
-                threshold: sensor.criticalThreshold!,
-                unit: sensor.unit
-              };
-            } else {
-              const warningDistance = hasThreshold ? Math.abs(sensor.criticalThreshold! - sensor.baseline!) * 0.65 : Infinity;
-              const currentDistance = (newValue - (sensor.baseline ?? newValue)) * Math.sign(sensor.criticalThreshold! - (sensor.baseline ?? newValue));
-              if (currentDistance >= warningDistance && assetMaxSeverity < 1) {
-                assetMaxSeverity = 1; // Degraded
-              }
-            }
-
-            return {
-              ...sensor,
-              currentValue: newValue,
-              history: updatedHistory
-            };
-          });
-
-          // Compute health score
-          let newHealthScore = 98 - nextSeededValue(simulationSeed) * 2;
-          let newStatus: Asset['status'] = 'HEALTHY';
-
-          if (assetMaxSeverity === 2) {
-            newHealthScore = Math.max(24, Math.round(48 - nextSeededValue(simulationSeed) * 15));
-            newStatus = 'DOWN';
-          } else if (assetMaxSeverity === 1) {
-            newHealthScore = Math.max(68, Math.round(76 - nextSeededValue(simulationSeed) * 8));
-            newStatus = 'DEGRADED';
-          }
-
-          // Trigger Closed-Loop Self-Healing if Critical and cooldown passed
-          if (assetMaxSeverity === 2 && triggeredSensorInfo) {
-            const lastTriggerTime = autoTriggerCooldownRef.current[asset.id] || 0;
-            if (now - lastTriggerTime > 15000 && !ordersRef.current.some(w => w.assetId === asset.id && w.autoGenerated && w.status !== 'RESOLVED')) {
-              // 15 sec cooldown per asset
-              autoTriggerCooldownRef.current[asset.id] = now;
-              triggerClosedLoopSelfHealing(asset, triggeredSensorInfo, updatedSensors);
-            }
-          }
-
-          return {
-            ...asset,
-            healthScore: Number(newHealthScore.toFixed(1)),
-            status: newStatus,
-            sensors: updatedSensors,
-            lastSeenAt: new Date(now).toISOString(), telemetrySource: 'SIMULATION', connectionState: 'CONNECTED'
-          };
-        })
-      );
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [isSimulating, activeOverride, mode, currentUser]);
+  const virtualBaseline = useRef<{assets:Asset[];workOrders:WorkOrder[];parts:InventoryPart[];suppliers:Supplier[];alarms:Record<string,unknown>[];notifications:NotificationItem[];supplierOrders:Record<string,unknown>[];stockMovements:Record<string,unknown>[]}|null>(null);
+  const incidentsRef=useRef(alarms); incidentsRef.current=alarms;
+  const noticesRef=useRef(notifications); noticesRef.current=notifications;
+  const evaluateVirtual=(nextAssets:Asset[],now=Date.now())=>{
+    const result=evaluateSimulationFleet(nextAssets,incidentsRef.current,ordersRef.current,noticesRef.current,now);
+    snapshotRef.current.assets=result.assets; snapshotRef.current.workOrders=result.workOrders;
+    ordersRef.current=result.workOrders; incidentsRef.current=result.alarms; noticesRef.current=result.notifications;
+    setAssets(result.assets);setWorkOrders(result.workOrders);setAlarms(result.alarms);setNotifications(result.notifications);
+  };
+  // Unchanged virtual readings stay at the captured LIVE values. Held tests relax back after expiry.
+  useEffect(()=>{
+    if(!currentUser||mode!=='SIMULATION'||!isSimulating||isSwitchingMode)return;
+    const interval=window.setInterval(()=>{
+      const now=Date.now(); const held=activeOverride&&now<activeOverride.expiresAt?activeOverride:null;
+      if(activeOverride&&!held)setActiveOverride(null);
+      const next=snapshotRef.current.assets.map(asset=>({...asset,sensors:asset.sensors.map(sensor=>{
+        const captured=virtualBaseline.current?.assets.find(a=>a.id===asset.id)?.sensors.find(s=>s.id===sensor.id)?.currentValue ?? sensor.currentValue;
+        const value=held&&held.assetId===asset.id&&held.sensorId===sensor.id?held.value:Number((sensor.currentValue+(captured-sensor.currentValue)*.08).toFixed(4));
+        return {...sensor,currentValue:value,rawValue:value,history:[...sensor.history.slice(-29),value]};
+      })}));
+      evaluateVirtual(next,now);
+    },2000);
+    return()=>window.clearInterval(interval);
+  },[mode,currentUser,isSimulating,activeOverride,isSwitchingMode]);
 
   useEffect(() => {
     if (mode !== 'LIVE' || !currentUser || isSwitchingMode) return;
     let stopped = false;
+    const liveScope=modeRequest.current;
     let socketConnected = false;
     const disconnect = liveApi.connectTelemetry((message: TelemetryMessage) => {
+      if(stopped||liveScope!==modeRequest.current)return;
       const alert = stabilizer.current.ingest(message);
       if (alert) setAssets(previous => previous.map(asset => asset.id === message.machineId
         ? { ...asset, status: alert, healthScore: alert === 'DOWN'
@@ -265,28 +184,31 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setTelemetryConnected(connected);
     });
     const displayTimer = window.setInterval(() => {
+      if(stopped||liveScope!==modeRequest.current)return;
       setAssets(previous => stabilizer.current.flush(previous));
       setTelemetryConnected(socketConnected && stabilizer.current.isFresh());
     }, TELEMETRY_CONFIG.displayIntervalMs);
-    // WebSocket currently publishes temperature only; refresh other channels through the same filter.
+    // Reconcile persistent incidents and inventory with the selected LIVE session.
     let pollTimer: number;
     const poll = async () => {
+      let nextPollMs = 15000;
       try {
         const rows = await liveApi.getAssets();
-        if (stopped) return;
+        if (stopped || liveScope!==modeRequest.current) return;
         for (const row of rows) {
           for (const sensor of row.sensors ?? []) {
             stabilizer.current.ingest({ machineId: row.id, sensorType: sensor.type, sensorId: sensor.id, value: sensor.currentValue, healthScore: row.health, status: row.status, recordedAt: row.lastSeenAt ?? '', source: row.telemetrySource });
           }
         }
-        await refreshOperational();
+        await refreshOperational(liveScope);
       } catch (error) {
-        if (!stopped && error instanceof Error) setModeError(error.message);
+        if (error instanceof ApiError && error.status === 429) nextPollMs = Math.max(15000, error.retryAfterMs);
+        else if (!stopped && error instanceof Error) setModeError(error.message);
       } finally {
-        if (!stopped) pollTimer = window.setTimeout(poll, 10000);
+        if (!stopped) pollTimer = window.setTimeout(poll, nextPollMs);
       }
     };
-    pollTimer = window.setTimeout(poll, 10000);
+    pollTimer = window.setTimeout(poll, 15000);
     return () => {
       stopped = true;
       disconnect();
@@ -295,20 +217,6 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setTelemetryConnected(false);
     };
   }, [mode, currentUser, isSwitchingMode]);
-
-  // Threshold automation is deterministic business logic, not an AI prediction.
-  const triggerClosedLoopSelfHealing = (
-    asset: Asset,
-    sensorInfo: { name: string; value: number; threshold: number; unit: string },
-    _currentSensors: Asset['sensors']
-  ) => {
-    const id = `WO-${crypto.randomUUID().slice(0, 12)}`;
-    const order: WorkOrder = { id, assetId: asset.id, assetName: asset.name, severity: 'CRITICAL', status: 'AUTO_GENERATED', title: `Inspect ${sensorInfo.name}`, description: `${sensorInfo.name} = ${sensorInfo.value} ${sensorInfo.unit}; critical threshold ${sensorInfo.threshold}. Verify sensor and inspect equipment using approved isolation procedures.`, assignedTechnician: 'Unassigned', createdAt: new Date().toISOString(), autoGenerated: true };
-    ordersRef.current = [order, ...ordersRef.current];
-    setWorkOrders(prev => [order, ...prev]);
-    addNotice({ type: 'ALERT', title: `Critical alarm: ${asset.name}`, message: order.description!, assetId: asset.id });
-    addNotice({ type: 'WORK_ORDER', title: 'Automatic work order created', message: order.title, assetId: asset.id, workOrderId: id });
-  };
 
   const applyOverride = (
     assetId: string,
@@ -322,16 +230,12 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    if (mode === 'LIVE') {
-      const sensor = assets.find((asset) => asset.id === assetId)?.sensors.find((item) => item.id === sensorId);
-      if (sensor?.type.toLowerCase() !== 'temperature') {
-        setModeError('The live simulation service currently accepts temperature overrides only.');
-        return;
-      }
-      liveApi.override(assetId, value, holdSeconds).catch((error: Error) => setModeError(error.message));
-      return;
-    }
+    if (mode === 'LIVE') { setModeError('Switch to Simulation to change test readings.'); return; }
 
+    const target=snapshotRef.current.assets.find(a=>a.id===assetId)?.sensors.find(sensor=>sensor.id===sensorId);
+    if(!target||!Number.isFinite(value)||!Number.isFinite(holdSeconds)||holdSeconds<1||holdSeconds>3600){setModeError('Choose a valid sensor, finite reading, and duration between 1 and 3600 seconds.');return;}
+    setModeError(null);
+    evaluateVirtual(snapshotRef.current.assets.map(asset=>asset.id===assetId?{...asset,sensors:asset.sensors.map(sensor=>sensor.id===sensorId?{...sensor,currentValue:value,rawValue:value,history:[...sensor.history.slice(-29),value]}:sensor)}:asset));
     setActiveOverride({
       assetId,
       sensorId,
@@ -347,45 +251,18 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return;
         }
 
-    if (mode === 'LIVE') {
-      liveApi.resetAsset(assetId).catch((error: Error) => setModeError(error.message));
-      return;
-    }
+    if (mode === 'LIVE') { setModeError('Machine resets are available in Simulation only.'); return; }
 
     setActiveOverride(null);
-    setAssets((prev) =>
-      prev.map((a) => {
-        if (a.id !== assetId) return a;
-        return {
-          ...a,
-          healthScore: 96.5,
-          status: 'HEALTHY',
-          sensors: a.sensors.map((s) => ({
-            ...s,
-            currentValue: s.baseline ?? s.currentValue,
-            history: [...s.history.slice(-20), s.baseline ?? s.currentValue]
-          }))
-        };
-      })
-    );
+    const restored=snapshotRef.current.assets.map(asset=>asset.id===assetId?{...asset,sensors:asset.sensors.map(sensor=>({...sensor,currentValue:sensor.baseline??sensor.currentValue,rawValue:sensor.baseline??sensor.currentValue,history:[...sensor.history.slice(-29),sensor.baseline??sensor.currentValue]}))}:asset);
+    evaluateVirtual(restored);
   };
 
-  const resetFleet = () => {
-        if (!canPerform(userRole, 'reset')) {
-          setModeError('Your account role does not have permission to reset assets.');
-          return;
-        }
-
-    if (mode === 'LIVE') {
-      Promise.all(assets.map((asset) => liveApi.resetAsset(asset.id)))
-        .catch((error: Error) => setModeError(error.message));
-      return;
-    }
-
-    setActiveOverride(null);
-    setRecentSelfHealingEvent(null);
-    simulationSeed.current = SIMULATION_SEED;
-    setAssets(structuredClone(INITIAL_ASSETS));
+  const resetFleet=()=>{
+    if(mode!=='SIMULATION'||!canPerform(userRole,'reset')||!virtualBaseline.current)return;
+    const snapshot=structuredClone(virtualBaseline.current);setActiveOverride(null);setRecentSelfHealingEvent(null);setAuditLogs([]);
+    snapshotRef.current={assets:snapshot.assets,workOrders:snapshot.workOrders,parts:snapshot.parts};ordersRef.current=snapshot.workOrders;incidentsRef.current=snapshot.alarms;noticesRef.current=snapshot.notifications;
+    setAssets(snapshot.assets);setWorkOrders(snapshot.workOrders);setParts(snapshot.parts);setSuppliers(snapshot.suppliers);setAlarms(snapshot.alarms);setNotifications(snapshot.notifications);setSupplierOrders(snapshot.supplierOrders);setStockMovements(snapshot.stockMovements);setModeError(null);
   };
 
   const triggerFailurePreset = (presetType: 'CNC_SPINDLE' | 'HYDRAULIC_BURST' | 'INVERTER_MELTDOWN') => {
@@ -399,31 +276,11 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    if (presetType === 'CNC_SPINDLE') {
-      applyOverride(
-        'ast-sinumerik-01',
-        'sn-snm-01',
-        8.45,
-        35,
-        'Simulated Spindle Cage Bearing Fracture (Vibration > 8.0 mm/s)'
-      );
-    } else if (presetType === 'HYDRAULIC_BURST') {
-      applyOverride(
-        'ast-hydraulic-04',
-        'sn-hyd-01',
-        425.0,
-        35,
-        'Simulated Hydraulic Cavitation Spike (Pressure > 400 Bar)'
-      );
-    } else if (presetType === 'INVERTER_MELTDOWN') {
-      applyOverride(
-        'ast-sinamics-03',
-        'sn-snx-01',
-        94.2,
-        35,
-        'Simulated IGBT Thermal Breakdown (Inverter Temp > 90°C)'
-      );
-    }
+    try {
+      const preset=({CNC_SPINDLE:['ast-sinumerik-01','Vibration'],HYDRAULIC_BURST:['ast-hydraulic-04','Pressure'],INVERTER_MELTDOWN:['ast-sinamics-03','Temperature']} as const)[presetType];
+      const reading=failureReading(snapshotRef.current.assets.find(asset=>asset.id===preset[0]),preset[1]);
+      applyOverride(reading.assetId,reading.sensorId,reading.value,60,reading.description);
+    }catch(error){setModeError(error instanceof Error?error.message:'Failure test unavailable.');}
   };
 
   const dismissSelfHealingEvent = () => {
@@ -442,17 +299,8 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    setWorkOrders((prev) =>
-      prev.map((wo) => {
-        if (wo.id !== workOrderId) return wo;
-        const resolvedAt = newStatus === 'RESOLVED' ? new Date().toISOString() : wo.resolvedAt;
-        return {
-          ...wo,
-          status: newStatus,
-          resolvedAt
-        };
-      })
-    );
+    const updated=ordersRef.current.map(order=>order.id===workOrderId?{...order,status:newStatus,resolvedAt:newStatus==='RESOLVED'?new Date().toISOString():undefined}:order);
+    ordersRef.current=updated;snapshotRef.current.workOrders=updated;setWorkOrders(updated);
 
     // If resolving, restore asset health if it was linked
     addNotice({ type: 'WORK_ORDER', title: newStatus === 'RESOLVED' ? 'Work order resolved' : 'Work order updated', message: `${workOrderId}: ${newStatus}`, workOrderId });
@@ -480,25 +328,17 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const asset = assets.find((item) => item.id === input.assetId);
     if (!asset) throw new Error('Select a valid asset.');
-    setWorkOrders((previous) => [{
-      id: `WO-${Date.now().toString().slice(-4)}`,
-      assetId: asset.id,
-      assetName: asset.name,
-      severity: input.priority,
-      status: 'SCHEDULED',
-      title: input.title,
-      assignedTechnician: input.owner || 'Unassigned',
-      createdAt: new Date().toISOString(),
-      description: input.description, aiRootCause: input.recommendedAction, autoGenerated: false
-    }, ...previous]);
-    addNotice({ type: 'WORK_ORDER', title: 'Work order created', message: input.title, assetId: asset.id });
+    if(!input.title.trim()||input.title.trim().length>200||(input.owner??'').length>80)throw new Error('Enter a title of up to 200 characters and a worker name of up to 80 characters.');
+    const order:WorkOrder={id:`WO-${crypto.randomUUID().slice(0,12)}`,assetId:asset.id,assetName:asset.name,severity:input.priority,status:'SCHEDULED',title:input.title.trim(),assignedTechnician:input.owner?.trim()||'Unassigned',createdAt:new Date().toISOString(),description:input.description,aiRootCause:input.recommendedAction,autoGenerated:false};
+    const updated=[order,...ordersRef.current];ordersRef.current=updated;snapshotRef.current.workOrders=updated;setWorkOrders(updated);
+    addNotice({type:'WORK_ORDER',title:'Work order created',message:order.title,assetId:asset.id,workOrderId:order.id});
   };
 
-  const reorderInventoryPart = (partId: string, quantity: number) => {
-    if (!canPerform(userRole, 'reorderInventory')) { setModeError('Your role has read-only inventory access.'); return; }
-    if (!Number.isInteger(quantity) || quantity < 1) { setModeError('Enter a positive integer quantity.'); return; }
+  const reorderInventoryPart = async (partId: string, quantity: number) => {
+    if (!canPerform(userRole, 'reorderInventory')) throw new Error('Your role has read-only inventory access.');
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100000) throw new Error('Enter an integer quantity between 1 and 100000.');
     const requestId = modeRequest.current;
-    if (mode === 'LIVE') { liveApi.reorderPart(partId, quantity).then(() => refreshOperational(requestId)).catch(error => { if (requestId === modeRequest.current) setModeError(error.message); }); return; }
+    if (mode === 'LIVE') { await liveApi.reorderPart(partId, quantity); await refreshOperational(requestId); return; }
     const part = snapshotRef.current.parts.find(p => p.id === partId);
     if (!part) return;
     setSupplierOrders(prev => prev.some(o => o.part_id === partId && o.status === 'SUGGESTED') ? prev : [{ id: crypto.randomUUID(), part_id: partId, supplier_id: part.supplierId, quantity, estimated_cost: quantity * (part.unitCost ?? 0), status: 'SUGGESTED', created_at: new Date().toISOString() }, ...prev]);
@@ -517,25 +357,40 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     snapshotRef.current.parts = snapshotRef.current.parts.map(p => p.id === partId ? { ...p, quantityOnHand: p.quantityOnHand + delta } : p);
     setStockMovements(prev => [{ id: crypto.randomUUID(), part_id: partId, quantity_delta: delta, reason: workOrderId ? 'WORK_ORDER' : 'ADJUSTMENT', work_order_id: workOrderId, created_at: new Date().toISOString() }, ...prev]);
     addNotice({ type: 'INVENTORY', title: 'Stock movement', message: `${part.name}: ${delta}`, partId, workOrderId });
-    if (part.quantityOnHand + delta <= part.reorderLevel) reorderInventoryPart(partId, Math.max(1, part.reorderLevel * 2 - (part.quantityOnHand + delta)));
+    if (part.quantityOnHand + delta <= part.reorderLevel) {
+      const quantity = Math.max(1, part.reorderLevel * 2 - (part.quantityOnHand + delta));
+      setSupplierOrders(prev => prev.some(o => o.part_id === partId && o.status === 'SUGGESTED') ? prev : [{ id: crypto.randomUUID(), part_id: partId, supplier_id: part.supplierId, quantity, estimated_cost: quantity * (part.unitCost ?? 0), status: 'SUGGESTED', created_at: new Date().toISOString() }, ...prev]);
+      addNotice({type:'INVENTORY',title:'Supplier reorder suggested',message:`${quantity} units of ${part.name}; procurement review required`,partId});
+    }
   };
-  const loadPartMovements = async (id: string) => { if (mode !== 'LIVE') return; const requestId = modeRequest.current; const movements = await liveApi.movements(id); if (requestId === modeRequest.current) setStockMovements(movements); };
+  const receiveSupplierOrder=async(id:string)=>{
+    if(!canPerform(userRole,'reorderInventory'))throw new Error('Your role cannot receive stock.');
+    const requestId=modeRequest.current;
+    if(mode==='LIVE'){await liveApi.receiveOrder(id);await refreshOperational(requestId);return;}
+    const order=supplierOrders.find(o=>String(o.id)===id);
+    if(!order||order.status==='RECEIVED')return;
+    if(!snapshotRef.current.parts.some(p=>p.id===String(order.part_id))||!Number.isInteger(Number(order.quantity))||Number(order.quantity)<1)throw new Error('Invalid supplier order or missing part.');
+    setSupplierOrders(prev=>prev.map(o=>String(o.id)===id?{...o,status:'RECEIVED'}:o));
+    await adjustInventoryPart(String(order.part_id),Number(order.quantity));
+  };
+  const loadPartMovements = async (id: string) => { if (mode !== 'LIVE') return; const requestId = modeRequest.current; const movements = await liveApi.movements(id); if (requestId === modeRequest.current) setStockMovements(previous=>[...previous.filter(m=>m.part_id!==id),...movements]); };
   const assignWorkOrder = async (id: string, owner: string) => {
     if (!canPerform(userRole, 'updateWorkOrder')) throw new Error('Your role cannot assign work orders.');
     if (!owner.trim()) throw new Error('Worker name is required.');
     const requestId = modeRequest.current;
     if (mode === 'LIVE') { await liveApi.updateWorkOrder(id, { owner, status: 'ASSIGNED' }); await refreshOperational(requestId); return; }
-    setWorkOrders(prev => prev.map(w => w.id === id ? { ...w, assignedTechnician: owner, status: 'ASSIGNED' } : w));
+    if(owner.trim().length>80)throw new Error('Worker name must be at most 80 characters.');
+    const updated=ordersRef.current.map(w=>w.id===id?{...w,assignedTechnician:owner.trim(),status:'ASSIGNED' as const}:w);ordersRef.current=updated;snapshotRef.current.workOrders=updated;setWorkOrders(updated);
     addNotice({ type: 'WORK_ORDER', title: 'Work order assigned', message: `${id}: ${owner}`, workOrderId: id });
   };
-  const callAi = async (action: 'diagnose' | 'analyze' | 'forecast' | 'draft-work-order', assetId: string, question: string) => {
+  const callAi = async (action: 'chat' | 'diagnose' | 'analyze' | 'forecast' | 'draft-work-order', assetId: string, question: string) => {
     if (!canPerform(userRole, 'diagnose')) throw new Error('Your role does not have access to AI diagnostics.');
     const requestId = modeRequest.current;
-    const response = await liveApi.ai(action, assetId, question, mode, { asset: assets.find(a => a.id === assetId), workOrders: workOrders.filter(w => w.assetId === assetId), alarms: assets.find(a => a.id === assetId)?.sensors.filter(s => s.criticalThreshold !== undefined && (s.currentValue - s.baseline!) / (s.criticalThreshold - s.baseline!) >= .65) });
+    const response = await liveApi.ai(action, assetId, question, mode, { asset: assets.find(a => a.id === assetId), workOrders: workOrders.filter(w => w.assetId === assetId), alarms: assets.find(a => a.id === assetId)?.sensors.filter(s => s.criticalThreshold !== undefined && (s.currentValue - s.baseline!) / (s.criticalThreshold - s.baseline!) >= .65) }, simulationSessionId);
     if (requestId !== modeRequest.current) throw new Error('Mode changed; this result was discarded.');
     return response;
   };
-  const runAi = (action: 'analyze' | 'forecast' | 'draft-work-order', assetId: string, question: string) => callAi(action, assetId, question);
+  const runAi = (action: 'chat' | 'analyze' | 'forecast' | 'draft-work-order', assetId: string, question: string) => callAi(action, assetId, question);
   const runAiDiagnosticQuery = async (assetId: string, question: string) => {
     const result = await callAi('diagnose', assetId, question);
     return { answer: result.answer ?? '', sources: [] as RagDocumentChunk[], sourceLabels: result.sources };
@@ -543,12 +398,12 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const markNotificationRead = (id: string) => {
     if (mode === 'LIVE') { const requestId = modeRequest.current; liveApi.readNotification(id).then(() => refreshOperational(requestId)).catch(error => setModeError(error.message)); return; }
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    const updated=noticesRef.current.map(n=>n.id===id?{...n,read:true}:n);noticesRef.current=updated;setNotifications(updated);
   };
 
   const clearAllNotifications = () => {
     if (mode === 'LIVE') { const requestId = modeRequest.current; liveApi.clearNotifications().then(() => refreshOperational(requestId)).catch(error => setModeError(error.message)); return; }
-    setNotifications([]);
+    noticesRef.current=[];setNotifications([]);
   };
 
   const switchMode = async (nextMode: AppMode, authenticatedUser?: LiveUserDto) => {
@@ -559,6 +414,10 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setNotifications([]); setAuditLogs([]); setStockMovements([]); setSupplierOrders([]);
       return;
     }
+    const captured=nextMode==='SIMULATION'?captureSimulationRecords({assets:snapshotRef.current.assets,workOrders:snapshotRef.current.workOrders,parts:snapshotRef.current.parts,suppliers,alarms,notifications,supplierOrders,stockMovements}):null;
+    if(nextMode==='SIMULATION'&&!captured?.assets.length){setModeError('Wait for LIVE machinery records before starting a virtual copy.');return;}
+    if (mode === 'SIMULATION') void liveApi.resetSimulationDocuments(simulationSessionId).catch(()=>{});
+    setSimulationSessionId(crypto.randomUUID());
     const requestId = ++modeRequest.current;
     setModeError(null);
     setRequiresSignIn(false);
@@ -567,19 +426,15 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setRecentSelfHealingEvent(null);
     setMode(nextMode);
     setNotifications([]); setStockMovements([]); setSupplierOrders([]);
-    autoTriggerCooldownRef.current = {}; activeAlarmRef.current = {};
-    if (nextMode === 'SIMULATION') {
-      setIsSwitchingMode(false);
-      simulationSeed.current = SIMULATION_SEED;
-      setUserRole('RELIABILITY_ENGINEER');
-      setDashboardSummary(null);
-      setAssets(structuredClone(INITIAL_ASSETS));
-      setWorkOrders(structuredClone(INITIAL_WORK_ORDERS));
-      setParts(structuredClone(INITIAL_PARTS));
-      setSuppliers(structuredClone(INITIAL_SUPPLIERS));
-      setAuditLogs([]);
+    setAlarms([]);
+    if (nextMode === 'SIMULATION' && captured) {
+      virtualBaseline.current=structuredClone(captured);
+      snapshotRef.current={assets:captured.assets,workOrders:captured.workOrders,parts:captured.parts};ordersRef.current=captured.workOrders;incidentsRef.current=captured.alarms;noticesRef.current=captured.notifications;
+      setIsSwitchingMode(false);setUserRole('RELIABILITY_ENGINEER');setIsSimulating(true);setDashboardSummary(null);
+      setAssets(captured.assets);setWorkOrders(captured.workOrders);setParts(captured.parts);setSuppliers(captured.suppliers);setAlarms(captured.alarms);setNotifications(captured.notifications);setSupplierOrders(captured.supplierOrders);setStockMovements(captured.stockMovements);setAuditLogs([]);
       return;
     }
+    virtualBaseline.current=null;
 
     // Never label mock data as live while authenticating or recovering a connection.
     setAssets([]);
@@ -651,11 +506,13 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const signOut = async () => {
     ++modeRequest.current;
+    if(mode==='SIMULATION')void liveApi.resetSimulationDocuments(simulationSessionId).catch(()=>{});
+    setSimulationSessionId(crypto.randomUUID());
     setCurrentUser(null);
     setActiveOverride(null); setRecentSelfHealingEvent(null);
     setAssets([]); setWorkOrders([]); setParts([]); setSuppliers([]);
     setAuditLogs([]); setNotifications([]); setStockMovements([]); setSupplierOrders([]);
-    autoTriggerCooldownRef.current = {}; activeAlarmRef.current = {};
+    setAlarms([]);
     setModeError(null);
     let logoutError: string | null = null;
     try {
@@ -720,7 +577,7 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         reorderInventoryPart,
         runAiDiagnosticQuery,
         markNotificationRead,
-        clearAllNotifications, runAi, adjustInventoryPart, assignWorkOrder, stockMovements, supplierOrders, loadPartMovements
+        clearAllNotifications, simulationSessionId, alarms, receiveSupplierOrder, runAi, adjustInventoryPart, assignWorkOrder, stockMovements, supplierOrders, loadPartMovements
       }}
     >
       {children}

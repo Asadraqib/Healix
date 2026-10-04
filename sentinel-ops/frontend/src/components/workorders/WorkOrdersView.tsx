@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect, useState } from 'react';
+import React, { FormEvent, useEffect, useRef, useState } from 'react';
 import {
   Wrench,
   CheckCircle2,
@@ -24,12 +24,17 @@ import { canPerform } from '../../services/accessControl';
 interface WorkOrdersViewProps {
   onNavigateTab: (tab: string) => void;
   targetWorkOrderId?: string | null;
+  onClearSelection?: () => void;
 }
 
-export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, targetWorkOrderId }) => {
-  const { workOrders, updateWorkOrderStatus, parts, resetAssetToBaseline, assets, mode, createWorkOrder, assignWorkOrder, userRole } = useSimulation();
+export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, targetWorkOrderId, onClearSelection }) => {
+  const { workOrders, updateWorkOrderStatus, parts, resetAssetToBaseline, assets, mode, createWorkOrder, assignWorkOrder, adjustInventoryPart, userRole } = useSimulation();
   const canManageWorkOrders = canPerform(userRole, 'updateWorkOrder');
 
+  const [usagePart,setUsagePart]=useState('');
+  const [usageQuantity,setUsageQuantity]=useState(1);
+  const [worker,setWorker]=useState('');
+  const [actionPending,setActionPending]=useState(false);
   const [searchQuery, setSearchQuery] = useState(targetWorkOrderId || '');
   const [statusFilter, setStatusFilter] = useState<'ALL' | WorkOrderStatus>('ALL');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(
@@ -45,7 +50,10 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
   const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {setSearchQuery(targetWorkOrderId ?? '');setSelectedOrder(targetWorkOrderId ? workOrders.find(w => w.id === targetWorkOrderId) ?? null : null);},[targetWorkOrderId]);
-  useEffect(() => {setSelectedOrder(null);},[mode]);
+  const previousMode = useRef(mode);
+  useEffect(() => {if(previousMode.current!==mode){setSelectedOrder(null);setCreateError(null);previousMode.current=mode;}},[mode]);
+  useEffect(()=>{if(selectedOrder){const current=workOrders.find(w=>w.id===selectedOrder.id);if(current)setSelectedOrder(current);}},[workOrders]);
+  useEffect(()=>{setWorker(selectedOrder?.assignedTechnician??'');setUsagePart('');setCreateError(null);},[selectedOrder?.id]);
   const filteredOrders = workOrders.filter((wo) => {
     const matchesSearch =
       wo.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -60,7 +68,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
 
   const handleResolveOrder = (order: WorkOrder) => {
     updateWorkOrderStatus(order.id, 'RESOLVED');
-    if (mode === 'SIMULATION') resetAssetToBaseline(order.assetId);
+
   };
 
   const handleCreateOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -89,23 +97,16 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
   return (
     <div className="space-y-6">
       
-      {selectedOrder && canManageWorkOrders && <form className="bg-white border rounded-xl p-4 flex flex-wrap gap-3 text-xs" onSubmit={e => {e.preventDefault();const data=new FormData(e.currentTarget);void assignWorkOrder(selectedOrder.id,String(data.get('owner'))).catch(error=>setCreateError(error.message));}}><span className="font-bold">{selectedOrder.id}</span><input name="owner" required placeholder="Assigned worker" defaultValue={selectedOrder.assignedTechnician} className="border rounded p-2"/><button className="bg-blue-700 text-white rounded px-3">Assign worker</button><select value={workOrders.find(w=>w.id===selectedOrder.id)?.status} onChange={e=>updateWorkOrderStatus(selectedOrder.id,e.target.value as WorkOrderStatus)} className="border rounded p-2">{['AUTO_GENERATED','ASSIGNED','SCHEDULED','IN_PROGRESS','RESOLVED'].map(status=><option key={status}>{status}</option>)}</select>{createError&&<p role="alert" className="text-rose-700">{createError}</p>}</form>}
       {/* Header Banner */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[11px] font-bold uppercase tracking-wider">
-              Maintenance Service • POST /api/work-orders
-            </span>
-            <span className="text-xs font-mono text-gray-500">Autonomous Closed-Loop Dispatch</span>
-          </div>
           <h1 className="text-2xl font-black text-gray-900 mt-1 tracking-tight">
-            Self-Healing Work Orders & Remediation
+            Work orders
           </h1>
           <p className="text-xs text-gray-500 mt-1">
             {mode === 'LIVE'
-              ? 'Work orders are loaded from the maintenance service. The current API does not expose status updates.'
-              : 'Work orders created automatically upon AI failure forecasting. Resolving a ticket triggers an actuator reset and recalibrates asset health.'}
+              ? 'Track assignments, repair progress, triggering readings, and parts used. Changes are saved permanently.'
+              : 'Practice assignments, repairs, and parts usage without changing live records.'}
           </p>
         </div>
 
@@ -264,15 +265,17 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
                 <div className="flex items-center justify-between text-indigo-900 font-bold">
                   <span className="flex items-center gap-1.5">
                     <Zap className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>AI Autonomous Root Cause Diagnosis</span>
+                    <span>Recommended action</span>
                   </span>
                   <span className="font-mono bg-indigo-200/60 px-1.5 py-0.2 rounded text-[10px]">
                     {selectedOrder.aiConfidence === undefined ? 'Confidence not reported' : `${(selectedOrder.aiConfidence * 100).toFixed(0)}% Confidence`}
                   </span>
                 </div>
-                <p className="text-indigo-900/90 leading-relaxed">{selectedOrder.aiRootCause ?? 'Diagnosis not provided by the service.'}</p>
+                <p className="text-indigo-900/90 leading-relaxed">{selectedOrder.aiRootCause ?? 'No recommended action recorded.'}</p>
               </div>
 
+              {selectedOrder.description && <p className="text-xs text-slate-600 leading-relaxed">{selectedOrder.description}</p>}
+              {Object.keys(selectedOrder.triggerReadings ?? {}).length > 0 && <div className="text-xs border rounded-lg p-3"><h3 className="font-semibold mb-2">Triggering readings</h3>{Object.entries(selectedOrder.triggerReadings ?? {}).map(([sensor,value]) => <p key={sensor}>{assets.find(a => a.id === selectedOrder.assetId)?.sensors.find(s => s.id === sensor)?.name ?? sensor}: {value}</p>)}</div>}
               {/* Ticket Metadata */}
               <div className="space-y-2 text-xs">
                 <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
@@ -291,7 +294,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
                   <span className="text-gray-500">Inventory Status:</span>
                   <span className="font-semibold text-emerald-600 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
-                    <span>{mode === 'SIMULATION' ? 'Reserved & Staged at Bay' : 'Reservation status not reported'}</span>
+                    <span>{selectedOrder.partReserved ? 'Reserved' : 'Parts are consumed when recorded'}</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-1.5">
@@ -302,13 +305,15 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
                 </div>
               </div>
 
+              {canManageWorkOrders && <div className="border-t pt-4 space-y-3">
+                <form onSubmit={e=>{e.preventDefault();setActionPending(true);void assignWorkOrder(selectedOrder.id,worker).catch(e=>setCreateError(e.message)).finally(()=>setActionPending(false));}} className="flex gap-2"><input value={worker} onChange={e=>setWorker(e.target.value)} required maxLength={80} aria-label="Assigned worker" placeholder="Assigned worker" className="border rounded p-2 flex-1 min-w-0"/><button disabled={actionPending} className="bg-blue-700 text-white rounded px-3">Assign</button></form>
+                <label className="block">Status<select value={selectedOrder.status} onChange={e=>updateWorkOrderStatus(selectedOrder.id,e.target.value as WorkOrderStatus)} className="block w-full border rounded p-2 mt-1">{['AUTO_GENERATED','ASSIGNED','SCHEDULED','IN_PROGRESS','RESOLVED'].map(status=><option key={status}>{status}</option>)}</select></label>
+                {selectedOrder.status!=='RESOLVED'&&<form onSubmit={e=>{e.preventDefault();setActionPending(true);void adjustInventoryPart(usagePart,-usageQuantity,selectedOrder.id).then(()=>setCreateError(null)).catch(e=>setCreateError(e.message)).finally(()=>setActionPending(false));}} className="space-y-2"><label className="block font-semibold">Record parts used<select value={usagePart} onChange={e=>setUsagePart(e.target.value)} required className="block border rounded p-2 mt-1 w-full"><option value="">Select compatible part</option>{parts.filter(p=>p.compatibleAssets?.includes(selectedOrder.assetId)).map(p=><option key={p.id} value={p.id}>{p.name} ({p.quantityOnHand} available)</option>)}</select></label><div className="flex gap-2"><input value={usageQuantity} onChange={e=>setUsageQuantity(Number(e.target.value))} type="number" min={1} step={1} required aria-label="Parts used quantity" className="border rounded p-2 w-24"/><button disabled={actionPending||!usagePart} className="bg-blue-700 text-white rounded px-3 py-2 disabled:opacity-50">Record usage</button></div></form>}
+                {createError&&<p role="alert" className="text-rose-700">{createError}</p>}
+              </div>}
               {/* Action Buttons for Lifecycle */}
               <div className="pt-3 border-t border-gray-100 space-y-2">
-                {mode === 'LIVE' ? (
-                  <p className="rounded bg-slate-50 p-3 text-center text-xs text-slate-600">
-                    The live maintenance contract does not expose work-order status updates.
-                  </p>
-                ) : !canManageWorkOrders ? (
+                {!canManageWorkOrders ? (
                   <p className="rounded bg-slate-50 p-3 text-center text-xs text-slate-600">
                     Your account role has read-only work-order access.
                   </p>
@@ -319,22 +324,22 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
                       className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>Complete Repair & Run Actuator Test</span>
+                      <span>Mark repair resolved</span>
                     </button>
 
                     <button
                       onClick={() => updateWorkOrderStatus(selectedOrder.id, 'IN_PROGRESS')}
                       className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold text-xs rounded-xl transition-colors"
                     >
-                      Mark In Progress (Technician En Route)
+                      Mark in progress
                     </button>
                   </>
                 ) : (
                   <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-center text-xs text-emerald-800">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
-                    <span className="font-bold">Remediation Verified & Closed</span>
+                    <span className="font-bold">Resolution recorded</span>
                     <p className="text-[11px] text-emerald-700 mt-0.5">
-                      Asset calibrated back to nominal baseline. Audit trail logged.
+                      Work order closed. Confirm machine condition using current readings.
                     </p>
                   </div>
                 )}
@@ -344,7 +349,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
                   className="w-full py-2 text-center text-xs text-blue-600 hover:underline font-semibold flex items-center justify-center gap-1"
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>Inspect Service Manual Procedures (RAG)</span>
+                  <span>Search maintenance manuals</span>
                 </button>
               </div>
             </div>

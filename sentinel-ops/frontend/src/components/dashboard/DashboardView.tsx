@@ -20,13 +20,13 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onSelectAsset }) => {
-  const { assets, workOrders, auditLogs, triggerFailurePreset, mode, dashboardSummary, userRole } = useSimulation();
+  const { assets, workOrders, alarms, triggerFailurePreset, mode, dashboardSummary, userRole } = useSimulation();
 
   const calculatedHealth = Math.round(
     assets.reduce((acc, a) => acc + a.healthScore, 0) / (assets.length || 1)
   );
   const avgHealth = dashboardSummary?.fleetHealth ?? calculatedHealth;
-  const onlineCount = dashboardSummary?.assetsOnline ?? assets.length;
+  const onlineCount = assets.filter(a => a.connectionState === 'CONNECTED' || (!a.connectionState && !!a.lastSeenAt && Date.now() - Date.parse(a.lastSeenAt) <= 15000)).length;
   const totalCount = dashboardSummary?.assetsTotal ?? assets.length;
   const healthyCount = assets.filter((a) => a.status === 'HEALTHY').length;
   const degradedCount = assets.filter((a) => a.status === 'DEGRADED').length;
@@ -44,15 +44,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
           {/* Left: Clear, Calm Title & Description */}
           <div className="max-w-xl">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Fleet Health & Self-Healing
+              Fleet Health & Maintenance
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">
               {mode === 'LIVE'
-                ? 'Asset status and telemetry are loaded from the connected Spring services. Use the live AI diagnosis service for maintenance questions.'
-                : 'Autonomous condition monitoring and predictive closed-loop remediation. Detects mechanical degradation and dispatches repair work orders before machine failure.'}
+                ? 'Monitor generated/demo telemetry, active alarms, and recorded maintenance. Physical equipment is not connected to the demo fleet.'
+                : 'Test threshold alarms and maintenance workflows using temporary simulation records.'}
             </p>
 
-            <div className="mt-4 flex items-center gap-3">
+            {mode === 'SIMULATION' && <div className="mt-4 flex items-center gap-3">
               {canAccessTab(userRole, 'simulation') && <button
                 onClick={() => onNavigateTab('simulation')}
                 className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5"
@@ -63,12 +63,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
 
               <button
                 onClick={() => triggerFailurePreset('CNC_SPINDLE')}
-                disabled={mode === 'LIVE' || !canPerform(userRole, 'override')}
+                disabled={!canPerform(userRole, 'override')}
                 className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-md border border-slate-300 shadow-xs transition-colors"
               >
                 Trigger Test Anomaly
               </button>
-            </div>
+            </div>}
           </div>
 
           {/* Right: Circular Gauges (Defender Circular Progress Style) */}
@@ -125,7 +125,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
                     stroke="#10b981"
                     strokeWidth="7"
                     strokeDasharray={2 * Math.PI * 32}
-                    strokeDashoffset={2 * Math.PI * 32 * (1 - healthyCount / assets.length)}
+                    strokeDashoffset={2 * Math.PI * 32 * (1 - healthyCount / (assets.length || 1))}
                     strokeLinecap="round"
                     fill="transparent"
                   />
@@ -156,20 +156,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs text-slate-600 font-medium">
               <span>Operational readiness</span>
-              <span>{Math.round((healthyCount / assets.length) * 100)}%</span>
+              <span>{Math.round((healthyCount / (assets.length || 1)) * 100)}%</span>
             </div>
             <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
               <div
                 className="bg-emerald-500 h-full transition-all"
-                style={{ width: `${(healthyCount / assets.length) * 100}%` }}
+                style={{ width: `${(healthyCount / (assets.length || 1)) * 100}%` }}
               />
               <div
                 className="bg-amber-400 h-full transition-all"
-                style={{ width: `${(degradedCount / assets.length) * 100}%` }}
+                style={{ width: `${(degradedCount / (assets.length || 1)) * 100}%` }}
               />
               <div
                 className="bg-rose-500 h-full transition-all"
-                style={{ width: `${(downCount / assets.length) * 100}%` }}
+                style={{ width: `${(downCount / (assets.length || 1)) * 100}%` }}
               />
             </div>
           </div>
@@ -190,39 +190,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
           </div>
         </div>
 
-        {/* Card 2: Self-Healing Automation Posture */}
         <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-900 tracking-tight">Automation Posture</span>
-            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${mode === 'LIVE' ? 'text-blue-700 bg-blue-50' : 'text-emerald-700 bg-emerald-50'}`}>
-              {mode === 'LIVE' ? 'Services Connected' : 'Closed Loop Active'}
-            </span>
-          </div>
-
-          <div className="space-y-2 text-xs text-slate-600">
-            <div className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-              <span>
-                <strong>{mode === 'LIVE' ? `${workOrders.length} Work Orders` : `${autoOrdersCount} Autonomous Work Orders`}</strong>{mode === 'LIVE' ? ' returned by the maintenance service.' : ' created with zero operator latency.'}
-              </span>
-            </div>
-            <div className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-              <span>
-                <strong>{mode === 'LIVE' ? 'AI Diagnosis Service' : 'AI Vector Diagnostic Engine'}</strong>{mode === 'LIVE' ? ' available through FastAPI.' : ' active on Qdrant collections.'}
-              </span>
-            </div>
-          </div>
-
-          {canAccessTab(userRole, 'workorders') && <div className="pt-1">
-            <button
-              onClick={() => onNavigateTab('workorders')}
-              className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
-            >
-              <span>Review open work orders</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>}
+          <h2 className="text-sm font-semibold text-slate-900">Maintenance activity</h2>
+          <p className="text-sm text-slate-600">{workOrders.filter(w => w.status !== 'RESOLVED').length} open work orders · {autoOrdersCount} automatically created</p>
+          <p className="text-sm text-slate-600">{alarms.filter(a => !a.resolved_at).length} active alarms</p>
+          {alarms.filter(a => !a.resolved_at).slice(0, 4).map(a => <button key={String(a.id)} onClick={() => onSelectAsset(String(a.asset_id))} className="block text-left text-xs text-amber-800 bg-amber-50 rounded p-2 w-full">{String(a.severity)} · {String(a.message)}</button>)}
+          {canAccessTab(userRole, 'workorders') && <button onClick={() => onNavigateTab('workorders')} className="text-xs text-blue-700 font-semibold">Review work orders →</button>}
         </div>
 
       </div>
@@ -276,10 +249,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
 
                     <td className="py-3 px-4 font-mono">
                       <span className="font-semibold text-slate-800">
-                        {primarySensor.currentValue} {primarySensor.unit}
+                        {primarySensor ? `${primarySensor.currentValue} ${primarySensor.unit}` : 'Unavailable'}
                       </span>
                       <span className="text-[10px] text-slate-400 block font-sans">
-                        {primarySensor.name}
+                        {primarySensor?.name ?? 'No readings configured'}
                       </span>
                     </td>
 
@@ -334,11 +307,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onNavigateTab('simulation');
+                          onSelectAsset(asset.id);
                         }}
                         className="text-xs font-medium text-blue-600 hover:text-blue-800"
                       >
-                        Simulate &rarr;
+                        View details &rarr;
                       </button>
                     </td>
                   </tr>

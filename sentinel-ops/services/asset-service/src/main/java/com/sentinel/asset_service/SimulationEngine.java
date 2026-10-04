@@ -42,8 +42,16 @@ public class SimulationEngine {
     }
   }
 
-  public Collection<AssetState> all() {
-    return List.copyOf(states.values());
+  public synchronized Collection<AssetState> all() { return snapshots(); }
+
+  public synchronized List<AssetState> snapshots() {
+    return states.values().stream().map(source -> {
+      AssetState copy = new AssetState();
+      copy.id=source.id;copy.temperature=source.temperature;copy.vibration=source.vibration;
+      copy.load=source.load;copy.power=source.power;copy.rpm=source.rpm;copy.productionCount=source.productionCount;
+      copy.health=source.health;copy.status=source.status;copy.telemetrySource=source.telemetrySource;copy.lastSeenAt=source.lastSeenAt;
+      return copy;
+    }).toList();
   }
 
   /** One step, called by the scheduler every four seconds. */
@@ -66,16 +74,6 @@ public class SimulationEngine {
       updateHealth(s);
       s.telemetrySource = "GENERATED_DEMO";
       s.lastSeenAt = now;
-    }
-
-    // Persist current values and sampled sensor history every 12 seconds.
-    if (tickCount % 1 == 0) {
-      for (AssetState s : states.values()) {
-        if ("CONNECTED_MACHINE".equalsIgnoreCase(s.telemetrySource)) continue;
-        repo.updateTelemetry(s.id, s.temperature, s.vibration, s.load, s.power, s.rpm,
-            s.productionCount, s.health, s.status, s.telemetrySource, s.lastSeenAt);
-        repo.appendHistory(s);
-      }
     }
 
     int average = (int) states.values().stream().mapToInt(s -> s.health).average().orElse(0);

@@ -28,7 +28,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
     toggleSimulation,
     triggerFailurePreset,
     mode,
-    userRole
+    userRole, alarms, workOrders
   } = useSimulation();
 
   const [selectedAssetId, setSelectedAssetId] = useState<string>(assets[0].id);
@@ -81,12 +81,10 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
       <div className="bg-white rounded-xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-            {mode === 'LIVE' ? 'Live Telemetry & Manual Override' : 'Live Telemetry Simulation & Anomaly Injection'}
+            Virtual machinery demonstration
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            {mode === 'LIVE'
-              ? 'Streaming readings from the asset service. The live override endpoint currently accepts temperature values.'
-              : 'Machines drift with natural Gaussian noise. Adjust sliders to push sensor values beyond threshold and observe the self-healing reaction.'}
+            This is a temporary copy of the LIVE readings and records captured when you switched modes. Change a reading to demonstrate alarms, automatic work orders, parts usage, and repair resolution. LIVE records stay unchanged.
           </p>
         </div>
 
@@ -96,7 +94,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Fleet</span>
+            <span>Restore captured LIVE snapshot</span>
           </button>}
 
           {mode === 'SIMULATION' && <button
@@ -117,14 +115,14 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
             <span className="text-[10px] font-semibold text-slate-400 uppercase">Step 1</span>
-            <div className="font-semibold text-slate-800 mt-0.5">Telemetry Ingestion</div>
-            <p className="text-[11px] text-slate-500 mt-0.5">{mode === 'LIVE' ? 'Asset service telemetry stream' : 'Ticking every 2000ms'}</p>
+            <div className="font-semibold text-slate-800 mt-0.5">Virtual reading</div>
+            <p className="text-[11px] text-slate-500 mt-0.5">Manual changes take effect immediately, even when paused</p>
           </div>
 
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
             <span className="text-[10px] font-semibold text-slate-400 uppercase">Step 2</span>
-            <div className="font-semibold text-slate-800 mt-0.5">Health Score Compute</div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Threshold: &lt; 60 pts</p>
+            <div className="font-semibold text-slate-800 mt-0.5">Threshold alarm</div>
+            <p className="text-[11px] text-slate-500 mt-0.5">Warning and critical sensor limits</p>
           </div>
 
           <div
@@ -135,8 +133,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             }`}
           >
             <span className="text-[10px] font-semibold text-slate-400 uppercase">Step 3</span>
-            <div className="font-semibold mt-0.5">{mode === 'LIVE' ? 'AI Diagnosis' : 'AI Failure Forecast'}</div>
-            <p className="text-[11px] text-slate-500 mt-0.5">{mode === 'LIVE' ? 'POST /api/ai/diagnose' : 'Local simulation model'}</p>
+            <div className="font-semibold mt-0.5">Automatic work order</div>
+            <p className="text-[11px] text-slate-500 mt-0.5">Created once per critical incident; no AI provider required</p>
           </div>
 
           <div
@@ -147,12 +145,13 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             }`}
           >
             <span className="text-[10px] font-semibold text-slate-400 uppercase">Step 4</span>
-            <div className="font-semibold mt-0.5">{mode === 'LIVE' ? 'Work Orders' : 'Auto Work Order'}</div>
-            <p className="text-[11px] text-slate-500 mt-0.5">{mode === 'LIVE' ? 'GET /api/work-orders' : 'Closed loop dispatch'}</p>
+            <div className="font-semibold mt-0.5">Record maintenance</div>
+            <p className="text-[11px] text-slate-500 mt-0.5">Assign a worker, record parts used, and resolve the repair</p>
           </div>
         </div>
       </div>
 
+      <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-3 text-sm"><h2 className="font-semibold">What happens after a failure test?</h2><p className="text-slate-600">{alarms.filter(a=>!a.resolved_at).length} active alarms · {workOrders.filter(w=>w.autoGenerated&&w.status!=='RESOLVED').length} open automatic work orders. A warning creates an alarm; a critical reading also creates a maintenance ticket. Closing a ticket does not create another ticket for the same ongoing incident.</p>{alarms.filter(a=>!a.resolved_at).slice(0,5).map(a=><p key={String(a.id)} className="text-xs text-amber-800">{String(a.severity)} · {String(a.message)}</p>)}<button onClick={()=>onNavigateTab('workorders')} className="text-blue-700 font-semibold text-xs">Open work orders to assign a worker, use parts, and demonstrate a repair →</button></div>
       {/* Main Simulation Workspace: Clean Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -297,7 +296,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
               <div className="flex justify-between text-[10px] font-mono text-slate-400">
                 <span>0</span>
                 <span className="text-rose-500 font-semibold">
-                  Danger &gt; {selectedSensor.criticalThreshold ?? 'Not reported'}
+                  Critical {selectedSensor.criticalThreshold !== undefined && selectedSensor.baseline !== undefined && selectedSensor.criticalThreshold < selectedSensor.baseline ? '≤' : '≥'} {selectedSensor.criticalThreshold ?? 'Not configured'}
                 </span>
                 <span>{maxSlider.toFixed(0)}</span>
               </div>
@@ -333,7 +332,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             >
               <div>
                 <span className="font-medium text-slate-800">Spindle Bearing Flaking</span>
-                <p className="text-[10px] text-slate-500">CNC Vibration &gt; 8.4 mm/s</p>
+                <p className="text-[10px] text-slate-500">Push the configured vibration sensor above its critical limit</p>
               </div>
               <Zap className="w-3.5 h-3.5 text-blue-600" />
             </button>
@@ -345,7 +344,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             >
               <div>
                 <span className="font-medium text-slate-800">Inverter Thermal Overheat</span>
-                <p className="text-[10px] text-slate-500">S120 Temp &gt; 94°C</p>
+                <p className="text-[10px] text-slate-500">Push the configured temperature sensor above its critical limit</p>
               </div>
               <Flame className="w-3.5 h-3.5 text-amber-500" />
             </button>
@@ -357,7 +356,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             >
               <div>
                 <span className="font-medium text-slate-800">Hydraulic Pressure Spike</span>
-                <p className="text-[10px] text-slate-500">Cold Press &gt; 425 Bar</p>
+                <p className="text-[10px] text-slate-500">Push the configured pressure sensor above its critical limit</p>
               </div>
               <Gauge className="w-3.5 h-3.5 text-cyan-600" />
             </button>

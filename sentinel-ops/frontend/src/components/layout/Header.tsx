@@ -14,14 +14,17 @@ import {
   UserPlus
 } from 'lucide-react';
 import { useSimulation } from '../../context/SimulationContext';
+import { GlobalSearch } from '../search/GlobalSearch';
+import type { SearchResult } from '../../services/searchRecords';
 import { UserRole } from '../../types';
 import { canPerform, roleLabel } from '../../services/accessControl';
 
 interface HeaderProps {
   onNavigateTab?: (tab: string) => void;
+  onOpenRecord: (record: SearchResult) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
+export const Header: React.FC<HeaderProps> = ({ onNavigateTab, onOpenRecord }) => {
   const {
     isSimulating,
     toggleSimulation,
@@ -103,41 +106,24 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
       
       {/* Left: App Launcher & Title (Defender style) */}
       <div className="flex items-center gap-3">
-        <button
-          className="hidden sm:inline-flex p-1 text-slate-300 hover:text-white rounded transition-colors"
-          title="App Launcher"
-        >
-          <Grid className="w-4 h-4" />
-        </button>
+
 
         <div
           onClick={() => onNavigateTab && onNavigateTab('dashboard')}
           className="flex items-center gap-2 cursor-pointer"
         >
           <span className="hidden sm:inline font-semibold text-sm tracking-tight text-white hover:text-blue-200 transition-colors">
-            Self-Healing Assets ERP
+            Healix
           </span>
-          <span className="sm:hidden font-semibold text-xs text-white">Self-Healing ERP</span>
+          <span className="sm:hidden font-semibold text-xs text-white">Healix</span>
           <span className="text-slate-400 text-xs hidden sm:inline">|</span>
           <span className="text-xs text-slate-300 hidden sm:inline font-normal">
-            Plant 04 Nuremberg
+            Siemens AG
           </span>
         </div>
       </div>
 
-      {/* Center: Minimalist Search (Microsoft 365 / Defender style) */}
-      {currentUser && <div className="hidden xl:flex flex-1 max-w-sm mx-6">
-        <div className="relative w-full">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search assets, telemetry, work orders..."
-            className="w-full pl-9 pr-3 py-1 bg-[#001738] text-xs text-white placeholder-slate-400 rounded-md border border-[#003882] focus:outline-none focus:border-blue-400 focus:bg-[#001f4d] transition-all"
-          />
-        </div>
-      </div>
-
-      }
+      {currentUser && <GlobalSearch onSelect={onOpenRecord}/>}
       {/* Right Controls */}
       {!currentUser && <button onClick={() => {setIsRegistering(false);setShowLogin(true);}} className="inline-flex items-center gap-2 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500"><LogIn className="h-4 w-4"/>Sign in</button>}
       {currentUser && <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -163,15 +149,15 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
 
         {mode === 'LIVE' && (
           <span className={`hidden lg:inline text-[10px] ${telemetryConnected ? 'text-emerald-300' : 'text-amber-200'}`}>
-            {telemetryConnected ? 'Telemetry connected' : 'Telemetry reconnecting'}
+            {telemetryConnected ? 'Generated/demo telemetry' : 'Telemetry reconnecting'}
           </span>
         )}
         
         {/* Quick Demo Trigger Dropdown */}
-        <div className="relative hidden sm:block">
+        {mode === 'SIMULATION' && <div className="relative hidden sm:block">
           <button
             onClick={() => setShowPresetMenu(!showPresetMenu)}
-            disabled={mode === 'LIVE' || !canPerform(userRole, 'override')}
+            disabled={!canPerform(userRole, 'override')}
             className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-blue-600/40 hover:bg-blue-600/60 text-blue-100 border border-blue-400/40 rounded transition-colors"
           >
             <Zap className="w-3 h-3 text-amber-300" />
@@ -226,6 +212,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
           )}
         </div>
 
+        }
         {/* Local Simulation Ticker */}
         {mode === 'SIMULATION' && <button
           onClick={toggleSimulation}
@@ -287,14 +274,14 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
                   notifications.map((n) => (
                     <div
                       key={n.id}
-                      onClick={() => markNotificationRead(n.id)}
+                      onClick={() => {markNotificationRead(n.id);setShowNotifications(false);if(n.workOrderId)onOpenRecord({kind:'workorders',id:n.workOrderId,label:n.title,secondary:''});else if(n.assetId)onOpenRecord({kind:'fleet',id:n.assetId,label:n.title,secondary:''});else if(n.partId)onOpenRecord({kind:'inventory',id:n.partId,label:n.title,secondary:''});}}
                       className={`p-2 rounded text-xs cursor-pointer transition-colors ${
                         n.type === 'HEALED'
                           ? 'bg-blue-50 text-blue-900'
                           : 'bg-slate-50 text-slate-800'
                       }`}
                     >
-                      <div className="font-semibold text-[11px]">{n.title}</div>
+                      <div className="font-semibold text-[11px]">{!n.read && <span aria-label="Unread" className="mr-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-600"/>}{n.title}</div>
                       <div className="text-slate-500 text-[10px] mt-0.5">{n.message}</div>
                     </div>
                   ))

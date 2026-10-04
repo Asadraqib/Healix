@@ -38,6 +38,7 @@ export interface LiveWorkOrderDto {
   resolvedAt?: string;
   recommendedAction?: string;
   triggerReadings?: unknown;
+  incidentId?: string | number;
 }
 
 export interface LivePartDto {
@@ -93,6 +94,7 @@ export interface TelemetryMessage {
   source?: string;
 }
 
+export interface MaintenanceDocument { id: string; filename: string; chunks: number; bytes: number; uploadedAt?: number; }
 export interface AiResult { answer?: string; explanation?: string; riskLevel?: string; recommendedChecks?: string[]; title?: string; description?: string; priority?: import('../types').WorkOrderSeverity; suggestedParts?: string[]; recommendedAction?: string; sources: string[]; }
 
 const configuredApiBaseUrl = (import.meta.env.DEV ? '' : import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -103,12 +105,20 @@ if (resolvedTelemetryUrl.protocol === 'http:') resolvedTelemetryUrl.protocol = '
 if (resolvedTelemetryUrl.protocol === 'https:') resolvedTelemetryUrl.protocol = 'wss:';
 const telemetryUrl = resolvedTelemetryUrl.toString();
 
+export class ApiError extends Error {
+  status: number;
+  retryAfterMs: number;
+  constructor(message: string, status: number, retryAfterMs = 0) {
+    super(message); this.name = 'ApiError'; this.status = status; this.retryAfterMs = retryAfterMs;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(init?.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers
     }
   });
@@ -123,7 +133,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       if (body && response.status !== 401) message = body;
     }
-    throw new Error(message);
+    const retryHeader = response.headers.get('Retry-After');
+    const retrySeconds = retryHeader ? Number(retryHeader) : NaN;
+    const retryAfterMs = Number.isFinite(retrySeconds) ? Math.max(1000, retrySeconds * 1000) : 60000;
+    throw new ApiError(message, response.status, response.status === 429 ? retryAfterMs : 0);
   }
 
   const body = await response.text();
@@ -202,10 +215,17 @@ export const liveApi = {
   adjustPart(id: string, delta: number) { return request<void>(`/api/parts/${id}/adjust`, { method: 'POST', body: JSON.stringify({ delta }) }); },
   consumePart(id: string, quantity: number, workOrderId: string) { return request<void>(`/api/parts/${id}/consume`, { method: 'POST', body: JSON.stringify({ quantity, workOrderId }) }); },
   reorderPart(id: string, quantity: number) { return request<void>(`/api/parts/${id}/reorder`, { method: 'POST', body: JSON.stringify({ quantity }) }); },
+  listDocuments(mode: string, sessionId: string) { return request<{ documents: MaintenanceDocument[] }>(`/api/ai/documents?mode=${mode}&sessionId=${sessionId}`); },
+  uploadDocument(file: File, mode: string, sessionId: string) { const data = new FormData(); data.append('file', file); return request<MaintenanceDocument>(`/api/ai/documents?mode=${mode}&sessionId=${sessionId}`, { method: 'POST', headers: { 'X-Healix-Mode': mode }, body: data }); },
+  removeDocument(id: string, mode: string, sessionId: string) { return request<void>(`/api/ai/documents/${id}?mode=${mode}&sessionId=${sessionId}`, { method: 'DELETE', headers: { 'X-Healix-Mode': mode } }); },
+  resetSimulationDocuments(sessionId: string) { return request<void>(`/api/ai/documents/simulation/${sessionId}`, { method: 'DELETE', headers: { 'X-Healix-Mode': 'SIMULATION' } }); },
+  alarms() { return request<Record<string, unknown>[]>('/api/alarms'); },
+  receiveOrder(id: string) { return request<void>(`/api/suppliers/orders/${id}/receive`, { method: 'POST' }); },
+  allMovements() { return request<Record<string, unknown>[]>('/api/parts/movements'); },
   movements(id: string) { return request<Record<string, unknown>[]>(`/api/parts/${id}/movements`); },
   supplierOrders() { return request<Record<string, unknown>[]>('/api/suppliers/orders'); },
-  ai(action: 'analyze' | 'forecast' | 'draft-work-order' | 'diagnose', machineId: string, question: string, mode: string, context: unknown) {
-    return request<AiResult>(`/api/ai/${action}`, { method: 'POST', headers: { 'X-Healix-Mode': mode }, body: JSON.stringify({ machineId, question, mode, context }) });
+  ai(action: 'chat' | 'analyze' | 'forecast' | 'draft-work-order' | 'diagnose', machineId: string, question: string, mode: string, context: unknown, simulationSessionId?: string) {
+    return request<AiResult>(`/api/ai/${action}`, { method: 'POST', headers: { 'X-Healix-Mode': mode }, body: JSON.stringify({ machineId, question, mode, context, simulationSessionId }) });
   },
   diagnose(machineId: string, question: string) {
     return request<{ answer: string; machineId: string; sources: string[] }>(

@@ -24,59 +24,59 @@ export const ArchitectureInspector: React.FC = () => {
       id: 'gateway',
       name: 'Spring Cloud Gateway',
       port: 8080,
-      tech: 'Spring Cloud Gateway • Java 21',
-      description: 'Single edge entry point. Validates JWT signature once, decrypts claims, and injects trusted X-User-Id and X-User-Role headers downstream.',
+      tech: 'Spring Cloud Gateway • Java 25+',
+      description: 'Single browser API entry point. Validates the session JWT and enforces role permissions and mode write restrictions.',
       routes: [
-        { path: '/api/auth/**', dest: 'auth-service:8081', auth: 'Public' },
-        { path: '/api/assets/**', dest: 'asset-service:8082', auth: 'AuthenticationFilter' },
-        { path: '/api/parts/**', dest: 'inventory-service:8083', auth: 'AuthenticationFilter' },
-        { path: '/api/suppliers/**', dest: 'supplier-service:8084', auth: 'AuthenticationFilter' },
-        { path: '/api/work-orders/**', dest: 'maintenance-service:8085', auth: 'AuthenticationFilter' },
-        { path: '/api/ai/**', dest: 'ai-service:8000', auth: 'AuthenticationFilter' },
-        { path: '/api/simulation/**', dest: 'simulation-service:8086', auth: 'AuthenticationFilter' }
+        { path: '/api/auth/**', dest: 'auth-service:8084', auth: 'Public' },
+        { path: '/api/assets/**', dest: 'asset-service:8081', auth: 'AuthenticationFilter' },
+        { path: '/api/parts/**', dest: 'maintenance-service:8082', auth: 'AuthenticationFilter' },
+        { path: '/api/suppliers/**', dest: 'maintenance-service:8082', auth: 'AuthenticationFilter' },
+        { path: '/api/work-orders/**', dest: 'maintenance-service:8082', auth: 'AuthenticationFilter' },
+        { path: '/api/ai/**', dest: 'ai-service:8083', auth: 'AuthenticationFilter' },
+        { path: '/api/simulation/**', dest: 'asset-service:8081', auth: 'AuthenticationFilter' }
       ]
     },
     {
       id: 'asset-service',
       name: 'Asset Service',
-      port: 8082,
-      tech: 'Spring Boot 3 • PostgreSQL (asset_db) • Flyway',
-      description: 'Manages assets & sensor telemetry history. Ingests readings and recalculates dynamic health scores. Fires WebClient call to ai-service on critical breach.',
+      port: 8081,
+      tech: 'Spring Boot • PostgreSQL (asset schema) • Flyway',
+      description: 'Registers machinery, ingests normalized readings, generates demo telemetry, and persists reading history.',
       routes: [
         { path: 'GET /api/assets', dest: 'List all machinery', auth: 'X-User-Role' },
         { path: 'GET /api/assets/{id}', dest: 'Machine detail & specs', auth: 'X-User-Role' },
-        { path: 'POST /api/assets/{id}/readings', dest: 'Ingest sensor & trigger loop', auth: 'X-User-Role' }
+        { path: 'POST /api/assets/{id}/telemetry', dest: 'Ingest equipment readings', auth: 'X-User-Role' }
       ]
     },
     {
       id: 'ai-service',
       name: 'AI / RAG Prediction Service',
-      port: 8000,
-      tech: 'Python 3.11 • FastAPI • Qdrant • PyTorch / OpenAI',
-      description: 'Performs failure probability forecasting and RAG diagnostics over indexed OEM equipment manuals. Persists audit trails in Postgres analysis_results.',
+      port: 8083,
+      tech: 'Python • FastAPI • Qdrant • Groq',
+      description: 'Analyzes current maintenance records with the configured Groq provider. Retrieves uploaded document sections from Qdrant with source references.',
       routes: [
-        { path: 'POST /api/ai/forecast', dest: 'Predict failure probability & RUL', auth: 'Edge Header' },
+        { path: 'POST /api/ai/forecast', dest: 'Explain maintenance risk and recommended checks', auth: 'Edge Header' },
         { path: 'POST /api/ai/diagnose', dest: 'Qdrant vector retrieval + LLM synthesis', auth: 'Edge Header' }
       ]
     },
     {
       id: 'maintenance-service',
       name: 'Maintenance & Work Orders Service',
-      port: 8085,
-      tech: 'Spring Boot 3 • PostgreSQL (maintenance_db) • Flyway',
-      description: 'Closed-loop endpoint invoked automatically by AI service when failure is predicted. Dispatches tickets and manages physical actuator resolution.',
+      port: 8082,
+      tech: 'Spring Boot • PostgreSQL (maintenance schema) • Flyway',
+      description: 'Detects threshold incidents and persists work orders, assignments, resolutions, stock movements, and supplier reorder suggestions.',
       routes: [
         { path: 'GET /api/work-orders', dest: 'Query active & resolved tickets', auth: 'X-User-Role' },
         { path: 'POST /api/work-orders', dest: 'Autonomous closed-loop creation', auth: 'X-User-Role' },
-        { path: 'PUT /api/work-orders/{id}', dest: 'Resolve & recalibrate asset', auth: 'X-User-Role' }
+        { path: 'PATCH /api/work-orders/{id}', dest: 'Update assignment or repair status', auth: 'X-User-Role' }
       ]
     },
     {
       id: 'simulation-service',
-      name: 'Live Simulation Service',
-      port: 8086,
-      tech: 'Spring Boot 3 • WebSocket (@Scheduled 2000ms)',
-      description: 'Streams live simulated sensor data with Gaussian baseline drift for Siemens SINUMERIK, SIMATIC, and SINAMICS fleet. Accepts manual override injections.',
+      name: 'Demo telemetry and equipment adapters',
+      port: 8081,
+      tech: 'Asset service • WebSocket telemetry',
+      description: 'Generated LIVE demo readings are persisted by the asset service. Browser SIMULATION changes stay temporary and do not use these LIVE write routes.',
       routes: [
         { path: 'WS /ws/simulation', dest: 'Live telemetry broadcast', auth: 'Public' },
         { path: 'POST /api/simulation/{id}/override', dest: 'Inject judge test value', auth: 'X-User-Role' },
@@ -102,7 +102,7 @@ export const ArchitectureInspector: React.FC = () => {
           Microservices Topology & Edge Gateway Routing
         </h1>
         <p className="text-xs text-gray-500 mt-1">
-          Spring Cloud Gateway with perimeter edge authentication, independent Spring Boot 3 services with Flyway schemas, and a Python FastAPI AI layer.
+          Spring Cloud Gateway with perimeter edge authentication, independent Spring Boot services with Flyway schemas, and a Python FastAPI AI layer.
         </p>
       </div>
 
@@ -112,7 +112,7 @@ export const ArchitectureInspector: React.FC = () => {
           <ShieldCheck className="w-5 h-5 text-cyan-400 mb-1" />
           <h4 className="font-bold text-xs text-cyan-200">Edge Perimeter Auth</h4>
           <p className="text-[11px] text-slate-300 mt-1">
-            JWT verified once at gateway. Downstream microservices trust `X-User-Id` / `X-User-Role` headers.
+            Gateway verifies the session JWT and applies role permissions. Internal service ports remain on the private container network.
           </p>
         </div>
 
@@ -128,15 +128,15 @@ export const ArchitectureInspector: React.FC = () => {
           <Layers className="w-5 h-5 text-purple-400 mb-1" />
           <h4 className="font-bold text-xs text-purple-200">FastAPI & Qdrant AI</h4>
           <p className="text-[11px] text-slate-300 mt-1">
-            RAG vector search over OEM equipment manuals with immutable audit trail in `analysis_results`.
+            Uploaded maintenance text persists in Qdrant. Retrieved sections ground provider responses and appear as source references.
           </p>
         </div>
 
         <div className="bg-slate-900 text-white p-4 rounded-xl border border-slate-800">
           <Terminal className="w-5 h-5 text-amber-400 mb-1" />
-          <h4 className="font-bold text-xs text-amber-200">Reproducible CI/CD</h4>
+          <h4 className="font-bold text-xs text-amber-200">Container configuration</h4>
           <p className="text-[11px] text-slate-300 mt-1">
-            GitHub Actions test matrix across all 5 Java 21 services + Docker Compose for 2-minute stage demos.
+            Docker Compose defines the frontend, Spring services, FastAPI, PostgreSQL, and Qdrant with persistence volumes.
           </p>
         </div>
       </div>

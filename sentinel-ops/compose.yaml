@@ -53,6 +53,13 @@ services:
       <<: *database-environment
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to at least 32 ASCII characters in the root .env}
 
+  qdrant:
+    image: qdrant/qdrant:v1.18.0
+    restart: unless-stopped
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks: [healix]
+
   ai-service:
     build: ./services/ai-service
     restart: unless-stopped
@@ -62,6 +69,10 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GROQ_MODEL: ${GROQ_MODEL:-qwen/qwen3.8-27b}
       GATEWAY_URL: http://gateway-service:8080
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      qdrant:
+        condition: service_started
     networks: [healix]
 
   gateway-service:
@@ -75,6 +86,8 @@ services:
       MAINTENANCE_SERVICE_URL: http://maintenance-service:8082
       AUTH_SERVICE_URL: http://auth-service:8084
       AI_SERVICE_URL: http://ai-service:8083
+      GATEWAY_RATE_LIMIT_PER_MINUTE: ${GATEWAY_RATE_LIMIT_PER_MINUTE:-300}
+      GATEWAY_RATE_LIMIT_WINDOW_SECONDS: ${GATEWAY_RATE_LIMIT_WINDOW_SECONDS:-60}
     ports:
       - '127.0.0.1:${GATEWAY_PORT:-8080}:8080'
     networks: [healix]
@@ -105,3 +118,4 @@ networks:
 
 volumes:
   postgres-data:
+  qdrant-data:

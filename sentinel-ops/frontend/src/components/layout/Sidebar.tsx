@@ -27,7 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   setCollapsed
 }) => {
-  const { workOrders, parts, userRole } = useSimulation();
+  const { workOrders, parts, userRole, mode } = useSimulation();
 
   const openWorkOrdersCount = workOrders.filter((w) => w.status !== 'RESOLVED').length;
   const lowPartsCount = parts.filter((p) => p.quantityOnHand <= p.reorderLevel).length;
@@ -102,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Nav links */}
       <nav className="flex-1 py-2 px-1.5 space-y-0.5 overflow-y-auto">
-        {navItems.filter((item) => canAccessTab(userRole, item.id)).map((item) => {
+        {navItems.filter((item) => canAccessTab(userRole, item.id) && (mode === 'SIMULATION' || !['simulation', 'architecture'].includes(item.id))).map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
 
@@ -147,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Clean quiet footer */}
       {!collapsed && (
         <div className="p-3 border-t border-slate-100 text-[11px] text-slate-400">
-          Plant 04 • Connected
+          {mode === 'SIMULATION' ? 'Temporary simulation' : 'Siemens AG · Live operations'}
         </div>
       )}
     </aside>

@@ -14,10 +14,12 @@ public class SimulationScheduler {
   private final TelemetryWebSocketHandler socket;
   private final ObjectMapper mapper = new ObjectMapper();
   private final boolean generatorEnabled;
+  private final AssetRepository repository;
 
   public SimulationScheduler(SimulationEngine engine, TelemetryWebSocketHandler socket,
-      @Value("${telemetry.generator.enabled:true}") boolean generatorEnabled) {
+      @Value("${telemetry.generator.enabled:true}") boolean generatorEnabled, AssetRepository repository) {
     this.engine = engine;
+    this.repository = repository;
     this.socket = socket;
     this.generatorEnabled = generatorEnabled;
   }
@@ -46,4 +48,10 @@ public class SimulationScheduler {
       }
     }
   }
+
+  @Scheduled(fixedDelay = 4000, initialDelay = 1000)
+  public void persistReadings() {
+    if (generatorEnabled) repository.persistDemoSnapshots(engine.snapshots());
+  }
+
 }
