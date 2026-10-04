@@ -1,0 +1,8 @@
+{
+  "plugins": ["./frontend/node_modules/prettier-plugin-java/dist/index.mjs"],
+  "printWidth": 100,
+  "tabWidth": 2,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "endOfLine": "lf"
+}

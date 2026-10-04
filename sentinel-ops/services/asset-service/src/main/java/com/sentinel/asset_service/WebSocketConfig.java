@@ -8,6 +8,7 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
+
   private final TelemetryWebSocketHandler handler;
 
   public WebSocketConfig(TelemetryWebSocketHandler handler) {

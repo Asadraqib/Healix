@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
   private final UserRepository repo;
   private final JwtService jwt;
   private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
@@ -33,9 +34,10 @@ public class AuthController {
 
   @PostMapping("/login")
   public UserResponse login(@RequestBody LoginRequest req, HttpServletResponse response) {
-    UserRow user = repo.findByEmail(req.email())
-        .filter(u -> encoder.matches(req.password(), u.passwordHash()))
-        .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
+    UserRow user = repo
+      .findByEmail(req.email())
+      .filter(u -> encoder.matches(req.password(), u.passwordHash()))
+      .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
     setCookie(response, user);
     return new UserResponse(user.id(), user.email(), user.name(), user.role());
   }
@@ -43,14 +45,22 @@ public class AuthController {
   @PostMapping("/logout")
   public void logout(HttpServletResponse response) {
     ResponseCookie expired = ResponseCookie.from("sentinel_token", "")
-        .httpOnly(true).path("/").maxAge(0).sameSite("Lax").build();
+      .httpOnly(true)
+      .path("/")
+      .maxAge(0)
+      .sameSite("Lax")
+      .build();
     response.addHeader("Set-Cookie", expired.toString());
   }
 
   private void setCookie(HttpServletResponse response, UserRow user) {
     String token = jwt.issue(user.id(), user.email(), user.role());
     ResponseCookie cookie = ResponseCookie.from("sentinel_token", token)
-        .httpOnly(true).path("/").maxAge(12 * 3600).sameSite("Lax").build();
+      .httpOnly(true)
+      .path("/")
+      .maxAge(12 * 3600)
+      .sameSite("Lax")
+      .build();
     response.addHeader("Set-Cookie", cookie.toString());
   }
 }

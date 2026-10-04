@@ -8,12 +8,14 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class GatewayRoutes {
+
   @Bean
   public Map<String, String> routeTable(
-      @Value("${ASSET_SERVICE_URL:http://localhost:8081}") String assetUrl,
-      @Value("${MAINTENANCE_SERVICE_URL:http://localhost:8082}") String maintenanceUrl,
-      @Value("${AI_SERVICE_URL:http://localhost:8083}") String aiUrl,
-      @Value("${AUTH_SERVICE_URL:http://localhost:8084}") String authUrl) {
+    @Value("${ASSET_SERVICE_URL:http://localhost:8081}") String assetUrl,
+    @Value("${MAINTENANCE_SERVICE_URL:http://localhost:8082}") String maintenanceUrl,
+    @Value("${AI_SERVICE_URL:http://localhost:8083}") String aiUrl,
+    @Value("${AUTH_SERVICE_URL:http://localhost:8084}") String authUrl
+  ) {
     Map<String, String> routes = new LinkedHashMap<>();
     routes.put("/api/assets", assetUrl);
     routes.put("/api/dashboard", assetUrl);

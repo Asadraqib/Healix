@@ -94,12 +94,33 @@ export interface TelemetryMessage {
   source?: string;
 }
 
-export interface MaintenanceDocument { id: string; filename: string; chunks: number; bytes: number; uploadedAt?: number; }
-export interface AiResult { answer?: string; explanation?: string; riskLevel?: string; recommendedChecks?: string[]; title?: string; description?: string; priority?: import('../types').WorkOrderSeverity; suggestedParts?: string[]; recommendedAction?: string; sources: string[]; }
+export interface MaintenanceDocument {
+  id: string;
+  filename: string;
+  chunks: number;
+  bytes: number;
+  uploadedAt?: number;
+}
+export interface AiResult {
+  answer?: string;
+  explanation?: string;
+  riskLevel?: string;
+  recommendedChecks?: string[];
+  title?: string;
+  description?: string;
+  priority?: import('../types').WorkOrderSeverity;
+  suggestedParts?: string[];
+  recommendedAction?: string;
+  sources: string[];
+}
 
-const configuredApiBaseUrl = (import.meta.env.DEV ? '' : import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const configuredApiBaseUrl = (
+  import.meta.env.DEV ? '' : import.meta.env.VITE_API_BASE_URL || ''
+).replace(/\/$/, '');
 const apiBaseUrl = configuredApiBaseUrl.replace(/\/api$/, '');
-const configuredTelemetryUrl = import.meta.env.DEV ? '/ws/simulation' : import.meta.env.VITE_WS_URL || '/ws/simulation';
+const configuredTelemetryUrl = import.meta.env.DEV
+  ? '/ws/simulation'
+  : import.meta.env.VITE_WS_URL || '/ws/simulation';
 const resolvedTelemetryUrl = new URL(configuredTelemetryUrl, window.location.href);
 if (resolvedTelemetryUrl.protocol === 'http:') resolvedTelemetryUrl.protocol = 'ws:';
 if (resolvedTelemetryUrl.protocol === 'https:') resolvedTelemetryUrl.protocol = 'wss:';
@@ -109,7 +130,10 @@ export class ApiError extends Error {
   status: number;
   retryAfterMs: number;
   constructor(message: string, status: number, retryAfterMs = 0) {
-    super(message); this.name = 'ApiError'; this.status = status; this.retryAfterMs = retryAfterMs;
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -118,9 +142,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     credentials: 'include',
     headers: {
-      ...(init?.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
-      ...init?.headers
-    }
+      ...(init?.body && !(init.body instanceof FormData)
+        ? { 'Content-Type': 'application/json' }
+        : {}),
+      ...init?.headers,
+    },
   });
 
   if (!response.ok) {
@@ -129,18 +155,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (response.status === 401) message = 'Sign in is required to access the live services.';
     try {
       const payload = JSON.parse(body) as { message?: string; error?: string; detail?: string };
-      if (response.status !== 401) message = payload.message || payload.detail || payload.error || message;
+      if (response.status !== 401)
+        message = payload.message || payload.detail || payload.error || message;
     } catch {
       if (body && response.status !== 401) message = body;
     }
     const retryHeader = response.headers.get('Retry-After');
     const retrySeconds = retryHeader ? Number(retryHeader) : NaN;
-    const retryAfterMs = Number.isFinite(retrySeconds) ? Math.max(1000, retrySeconds * 1000) : 60000;
+    const retryAfterMs = Number.isFinite(retrySeconds)
+      ? Math.max(1000, retrySeconds * 1000)
+      : 60000;
     throw new ApiError(message, response.status, response.status === 429 ? retryAfterMs : 0);
   }
 
   const body = await response.text();
-  return body ? JSON.parse(body) as T : undefined as T;
+  return body ? (JSON.parse(body) as T) : (undefined as T);
 }
 
 export const liveApi = {
@@ -151,14 +180,14 @@ export const liveApi = {
   login(email: string, password: string) {
     return request<LiveUserDto>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password }),
     });
   },
 
   register(name: string, email: string, password: string) {
     return request<LiveUserDto>('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password })
+      body: JSON.stringify({ name, email, password }),
     });
   },
 
@@ -175,7 +204,7 @@ export const liveApi = {
       request<LiveAssetDto[]>('/api/assets'),
       request<LiveWorkOrderDto[]>('/api/work-orders'),
       request<LivePartDto[]>('/api/parts'),
-      request<{ suppliers: { items: LiveSupplierDto[] } }>('/api/suppliers')
+      request<{ suppliers: { items: LiveSupplierDto[] } }>('/api/suppliers'),
     ]);
 
     return { assets, workOrders, parts, suppliers: supplierEnvelope.suppliers.items };
@@ -185,56 +214,134 @@ export const liveApi = {
     return request<LiveDashboardSummary>('/api/dashboard/summary');
   },
 
-  createWorkOrder(input: { assetId: string; title: string; priority?: string; owner?: string; due?: string; description?: string; recommendedAction?: string }) {
+  createWorkOrder(input: {
+    assetId: string;
+    title: string;
+    priority?: string;
+    owner?: string;
+    due?: string;
+    description?: string;
+    recommendedAction?: string;
+  }) {
     return request<LiveWorkOrderDto>('/api/work-orders', {
       method: 'POST',
-      body: JSON.stringify(input)
+      body: JSON.stringify(input),
     });
   },
 
   override(machineId: string, value: number, holdSeconds = 30) {
     return request<{ machineId: string; value: number; holdSeconds: number }>(
       `/api/simulation/${encodeURIComponent(machineId)}/override`,
-      { method: 'POST', body: JSON.stringify({ value, holdSeconds }) }
+      { method: 'POST', body: JSON.stringify({ value, holdSeconds }) },
     );
   },
 
   resetAsset(machineId: string) {
     return request<{ machineId: string; reset: boolean }>(
       `/api/simulation/${encodeURIComponent(machineId)}/reset`,
-      { method: 'POST' }
+      { method: 'POST' },
     );
   },
 
   updateWorkOrder(id: string, input: { status?: string; owner?: string }) {
-    return request<LiveWorkOrderDto>(`/api/work-orders/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) });
+    return request<LiveWorkOrderDto>(`/api/work-orders/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
   },
-  notifications() { return request<Record<string, unknown>[]>('/api/notifications'); },
-  readNotification(id: string) { return request<void>(`/api/notifications/${id}/read`, { method: 'PATCH' }); },
-  clearNotifications() { return request<void>('/api/notifications', { method: 'DELETE' }); },
-  adjustPart(id: string, delta: number) { return request<void>(`/api/parts/${id}/adjust`, { method: 'POST', body: JSON.stringify({ delta }) }); },
-  consumePart(id: string, quantity: number, workOrderId: string) { return request<void>(`/api/parts/${id}/consume`, { method: 'POST', body: JSON.stringify({ quantity, workOrderId }) }); },
-  reorderPart(id: string, quantity: number) { return request<void>(`/api/parts/${id}/reorder`, { method: 'POST', body: JSON.stringify({ quantity }) }); },
-  listDocuments(mode: string, sessionId: string) { return request<{ documents: MaintenanceDocument[] }>(`/api/ai/documents?mode=${mode}&sessionId=${sessionId}`); },
-  uploadDocument(file: File, mode: string, sessionId: string) { const data = new FormData(); data.append('file', file); return request<MaintenanceDocument>(`/api/ai/documents?mode=${mode}&sessionId=${sessionId}`, { method: 'POST', headers: { 'X-Healix-Mode': mode }, body: data }); },
-  removeDocument(id: string, mode: string, sessionId: string) { return request<void>(`/api/ai/documents/${id}?mode=${mode}&sessionId=${sessionId}`, { method: 'DELETE', headers: { 'X-Healix-Mode': mode } }); },
-  resetSimulationDocuments(sessionId: string) { return request<void>(`/api/ai/documents/simulation/${sessionId}`, { method: 'DELETE', headers: { 'X-Healix-Mode': 'SIMULATION' } }); },
-  alarms() { return request<Record<string, unknown>[]>('/api/alarms'); },
-  receiveOrder(id: string) { return request<void>(`/api/suppliers/orders/${id}/receive`, { method: 'POST' }); },
-  allMovements() { return request<Record<string, unknown>[]>('/api/parts/movements'); },
-  movements(id: string) { return request<Record<string, unknown>[]>(`/api/parts/${id}/movements`); },
-  supplierOrders() { return request<Record<string, unknown>[]>('/api/suppliers/orders'); },
-  ai(action: 'chat' | 'analyze' | 'forecast' | 'draft-work-order' | 'diagnose', machineId: string, question: string, mode: string, context: unknown, simulationSessionId?: string) {
-    return request<AiResult>(`/api/ai/${action}`, { method: 'POST', headers: { 'X-Healix-Mode': mode }, body: JSON.stringify({ machineId, question, mode, context, simulationSessionId }) });
+  notifications() {
+    return request<Record<string, unknown>[]>('/api/notifications');
   },
-  diagnose(machineId: string, question: string) {
-    return request<{ answer: string; machineId: string; sources: string[] }>(
-      '/api/ai/diagnose',
-      { method: 'POST', body: JSON.stringify({ machineId, question }) }
+  readNotification(id: string) {
+    return request<void>(`/api/notifications/${id}/read`, { method: 'PATCH' });
+  },
+  clearNotifications() {
+    return request<void>('/api/notifications', { method: 'DELETE' });
+  },
+  adjustPart(id: string, delta: number) {
+    return request<void>(`/api/parts/${id}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify({ delta }),
+    });
+  },
+  consumePart(id: string, quantity: number, workOrderId: string) {
+    return request<void>(`/api/parts/${id}/consume`, {
+      method: 'POST',
+      body: JSON.stringify({ quantity, workOrderId }),
+    });
+  },
+  reorderPart(id: string, quantity: number) {
+    return request<void>(`/api/parts/${id}/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({ quantity }),
+    });
+  },
+  listDocuments(mode: string, sessionId: string) {
+    return request<{ documents: MaintenanceDocument[] }>(
+      `/api/ai/documents?mode=${mode}&sessionId=${sessionId}`,
     );
   },
+  uploadDocument(file: File, mode: string, sessionId: string) {
+    const data = new FormData();
+    data.append('file', file);
+    return request<MaintenanceDocument>(`/api/ai/documents?mode=${mode}&sessionId=${sessionId}`, {
+      method: 'POST',
+      headers: { 'X-Healix-Mode': mode },
+      body: data,
+    });
+  },
+  removeDocument(id: string, mode: string, sessionId: string) {
+    return request<void>(`/api/ai/documents/${id}?mode=${mode}&sessionId=${sessionId}`, {
+      method: 'DELETE',
+      headers: { 'X-Healix-Mode': mode },
+    });
+  },
+  resetSimulationDocuments(sessionId: string) {
+    return request<void>(`/api/ai/documents/simulation/${sessionId}`, {
+      method: 'DELETE',
+      headers: { 'X-Healix-Mode': 'SIMULATION' },
+    });
+  },
+  alarms() {
+    return request<Record<string, unknown>[]>('/api/alarms');
+  },
+  receiveOrder(id: string) {
+    return request<void>(`/api/suppliers/orders/${id}/receive`, { method: 'POST' });
+  },
+  allMovements() {
+    return request<Record<string, unknown>[]>('/api/parts/movements');
+  },
+  movements(id: string) {
+    return request<Record<string, unknown>[]>(`/api/parts/${id}/movements`);
+  },
+  supplierOrders() {
+    return request<Record<string, unknown>[]>('/api/suppliers/orders');
+  },
+  ai(
+    action: 'chat' | 'analyze' | 'forecast' | 'draft-work-order' | 'diagnose',
+    machineId: string,
+    question: string,
+    mode: string,
+    context: unknown,
+    simulationSessionId?: string,
+  ) {
+    return request<AiResult>(`/api/ai/${action}`, {
+      method: 'POST',
+      headers: { 'X-Healix-Mode': mode },
+      body: JSON.stringify({ machineId, question, mode, context, simulationSessionId }),
+    });
+  },
+  diagnose(machineId: string, question: string) {
+    return request<{ answer: string; machineId: string; sources: string[] }>('/api/ai/diagnose', {
+      method: 'POST',
+      body: JSON.stringify({ machineId, question }),
+    });
+  },
 
-  connectTelemetry(onMessage: (message: TelemetryMessage) => void, onStatus?: (connected: boolean) => void) {
+  connectTelemetry(
+    onMessage: (message: TelemetryMessage) => void,
+    onStatus?: (connected: boolean) => void,
+  ) {
     let socket: WebSocket | undefined;
     let retryTimer: number | undefined;
     let closed = false;
@@ -263,5 +370,5 @@ export const liveApi = {
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       socket?.close();
     };
-  }
+  },
 };

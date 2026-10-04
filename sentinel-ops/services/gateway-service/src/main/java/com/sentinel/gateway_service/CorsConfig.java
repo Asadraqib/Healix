@@ -1,16 +1,17 @@
 package com.sentinel.gateway_service;
 
 import java.util.List;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
 @Configuration
 public class CorsConfig {
+
   @Bean
   public FilterRegistrationBean<CorsFilter> corsFilterRegistration() {
     CorsConfiguration configuration = new CorsConfiguration();
@@ -22,7 +23,9 @@ public class CorsConfig {
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/api/**", configuration);
 
-    FilterRegistrationBean<CorsFilter> registration = new FilterRegistrationBean<>(new CorsFilter(source));
+    FilterRegistrationBean<CorsFilter> registration = new FilterRegistrationBean<>(
+      new CorsFilter(source)
+    );
     registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
     return registration;
   }

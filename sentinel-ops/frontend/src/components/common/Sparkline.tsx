@@ -15,7 +15,7 @@ export const Sparkline: React.FC<SparklineProps> = ({
   threshold,
   width = 180,
   height = 42,
-  unit = ''
+  unit = '',
 }) => {
   if (!data || data.length === 0) {
     return <div className="text-xs text-gray-400">No telemetry data</div>;

@@ -1,8 +1,8 @@
 package com.sentinel.gateway_service;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collections;
 import java.util.Map;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClient;
 
 @RestController
 public class ProxyController {
+
   private final RestClient restClient = RestClient.create();
   private final Map<String, String> routes;
 
@@ -22,11 +23,13 @@ public class ProxyController {
   @RequestMapping("/api/**")
   public ResponseEntity<byte[]> proxy(HttpServletRequest request) throws Exception {
     String path = request.getRequestURI();
-    String target = routes.entrySet().stream()
-        .filter(e -> path.startsWith(e.getKey()))
-        .map(Map.Entry::getValue)
-        .findFirst()
-        .orElse(null);
+    String target = routes
+      .entrySet()
+      .stream()
+      .filter(e -> path.startsWith(e.getKey()))
+      .map(Map.Entry::getValue)
+      .findFirst()
+      .orElse(null);
 
     if (target == null) {
       return ResponseEntity.status(502).body(("No route for " + path).getBytes());
@@ -36,7 +39,9 @@ public class ProxyController {
     String url = target + path + (query != null ? "?" + query : "");
     byte[] body = request.getInputStream().readAllBytes();
 
-    RestClient.RequestBodySpec spec = restClient.method(HttpMethod.valueOf(request.getMethod())).uri(url);
+    RestClient.RequestBodySpec spec = restClient
+      .method(HttpMethod.valueOf(request.getMethod()))
+      .uri(url);
 
     for (String name : Collections.list(request.getHeaderNames())) {
       if (!name.equalsIgnoreCase("host") && !name.equalsIgnoreCase("content-length")) {
@@ -52,7 +57,9 @@ public class ProxyController {
           headers.put(k, v);
         }
       });
-      return ResponseEntity.status(resp.getStatusCode()).headers(headers).body(resp.getBody().readAllBytes());
+      return ResponseEntity.status(resp.getStatusCode())
+        .headers(headers)
+        .body(resp.getBody().readAllBytes());
     });
   }
 }

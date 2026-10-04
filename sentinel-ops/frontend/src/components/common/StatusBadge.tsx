@@ -28,7 +28,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
     case 'LOW_STOCK':
       colorClasses = 'bg-amber-50 text-amber-700 border-amber-200';
       dotColor = 'bg-amber-500';
-      label = status === 'IN_PROGRESS' ? 'In Progress' : status === 'DEGRADED' ? 'Degraded' : status;
+      label =
+        status === 'IN_PROGRESS' ? 'In Progress' : status === 'DEGRADED' ? 'Degraded' : status;
       break;
 
     case 'DOWN':

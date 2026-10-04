@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.mjs\" \"*.{ts,json,html}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.mjs\" \"*.{ts,json,html}\"",
+    "format:java": "prettier --write \"../services/*/src/**/*.java\"",
     "preview": "vite preview",
     "test:telemetry": "node --experimental-strip-types tests/telemetryStabilizer.test.mjs"
   },
@@ -25,6 +28,8 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
+    "prettier": "^3.9.9",
+    "prettier-plugin-java": "^2.11.0",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   }

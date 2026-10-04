@@ -13,17 +13,27 @@ interface FleetViewProps {
   onClearSelection?: () => void;
 }
 
-export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAssetId, onClearSelection }) => {
+export const FleetView: React.FC<FleetViewProps> = ({
+  onNavigateTab,
+  selectedAssetId,
+  onClearSelection,
+}) => {
   const { assets, userRole, mode } = useSimulation();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'HEALTHY' | 'DEGRADED' | 'DOWN'>('ALL');
   const [modalAsset, setModalAsset] = useState<Asset | null>(
-    selectedAssetId ? assets.find((a) => a.id === selectedAssetId) || null : null
+    selectedAssetId ? assets.find((a) => a.id === selectedAssetId) || null : null,
   );
 
-  useEffect(() => { if(selectedAssetId) setModalAsset(assets.find(a => a.id === selectedAssetId) ?? null); }, [selectedAssetId]);
-  useEffect(() => { setModalAsset(previous => previous ? assets.find(a => a.id === previous.id) ?? null : null); }, [assets]);
+  useEffect(() => {
+    if (selectedAssetId) setModalAsset(assets.find((a) => a.id === selectedAssetId) ?? null);
+  }, [selectedAssetId]);
+  useEffect(() => {
+    setModalAsset((previous) =>
+      previous ? (assets.find((a) => a.id === previous.id) ?? null) : null,
+    );
+  }, [assets]);
 
   const filteredAssets = assets.filter((asset) => {
     const matchesSearch =
@@ -38,13 +48,10 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      
       {/* Header & Filters */}
       <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-            Machinery & Assets
-          </h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Machinery & Assets</h1>
           <p className="text-xs text-slate-500 mt-1">
             Condition status and streaming sensor telemetry for Plant 04 equipment
           </p>
@@ -74,7 +81,11 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
-                {filter === 'ALL' ? 'All' : filter === 'DOWN' ? 'Critical' : filter.charAt(0) + filter.slice(1).toLowerCase()}
+                {filter === 'ALL'
+                  ? 'All'
+                  : filter === 'DOWN'
+                    ? 'Critical'
+                    : filter.charAt(0) + filter.slice(1).toLowerCase()}
               </button>
             ))}
           </div>
@@ -85,7 +96,8 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredAssets.map((asset) => {
           const primarySensor = asset.sensors[0];
-          const isOver = primarySensor.criticalThreshold !== undefined &&
+          const isOver =
+            primarySensor.criticalThreshold !== undefined &&
             primarySensor.baseline !== undefined &&
             (primarySensor.criticalThreshold > primarySensor.baseline
               ? primarySensor.currentValue >= primarySensor.criticalThreshold
@@ -99,9 +111,7 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
               <div>
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                      {asset.name}
-                    </h3>
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug">{asset.name}</h3>
                     <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
                       <MapPin className="w-3 h-3 text-slate-400" />
                       <span>{asset.location}</span>
@@ -122,8 +132,8 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
                         asset.healthScore < 60
                           ? 'bg-rose-500'
                           : asset.healthScore < 80
-                          ? 'bg-amber-400'
-                          : 'bg-emerald-500'
+                            ? 'bg-amber-400'
+                            : 'bg-emerald-500'
                       }`}
                       style={{ width: `${asset.healthScore}%` }}
                     />
@@ -133,7 +143,9 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
                 {/* Primary Sensor Reading */}
                 <div className="mt-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-600 font-medium truncate">{primarySensor.name}</span>
+                    <span className="text-slate-600 font-medium truncate">
+                      {primarySensor.name}
+                    </span>
                     <span
                       className={`font-mono font-bold ${
                         isOver ? 'text-rose-600' : 'text-slate-900'
@@ -169,13 +181,15 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
                   <ArrowUpRight className="w-3 h-3" />
                 </button>
 
-                {mode === 'SIMULATION' && canAccessTab(userRole, 'simulation') && <button
-                  onClick={() => onNavigateTab('simulation')}
-                  className="py-1 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1 border border-blue-200"
-                >
-                  <Sliders className="w-3 h-3" />
-                  <span>Simulate</span>
-                </button>}
+                {mode === 'SIMULATION' && canAccessTab(userRole, 'simulation') && (
+                  <button
+                    onClick={() => onNavigateTab('simulation')}
+                    className="py-1 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1 border border-blue-200"
+                  >
+                    <Sliders className="w-3 h-3" />
+                    <span>Simulate</span>
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -185,11 +199,13 @@ export const FleetView: React.FC<FleetViewProps> = ({ onNavigateTab, selectedAss
       {/* Asset Detail Modal */}
       <AssetDetailModal
         asset={modalAsset}
-        onClose={() => {setModalAsset(null);onClearSelection?.();}}
+        onClose={() => {
+          setModalAsset(null);
+          onClearSelection?.();
+        }}
         onNavigateToAi={() => onNavigateTab('ai-rag')}
         onNavigateToSimulation={() => onNavigateTab('simulation')}
       />
-
     </div>
   );
 };

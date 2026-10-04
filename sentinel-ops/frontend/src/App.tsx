@@ -18,10 +18,10 @@ import { canAccessTab } from './services/accessControl';
 
 const AppContent: React.FC = () => {
   const { userRole, currentUser, isSwitchingMode, mode } = useSimulation();
-  const [detailRecord,setDetailRecord]=useState<SearchResult|null>(null);
+  const [detailRecord, setDetailRecord] = useState<SearchResult | null>(null);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
-    window.matchMedia('(max-width: 639px)').matches
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
+    () => window.matchMedia('(max-width: 639px)').matches,
   );
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [targetWorkOrderId, setTargetWorkOrderId] = useState<string | null>(null);
@@ -34,18 +34,34 @@ const AppContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!canAccessTab(userRole, activeTab) || (mode === 'LIVE' && ['simulation','architecture'].includes(activeTab))) setActiveTab('dashboard');
+    if (
+      !canAccessTab(userRole, activeTab) ||
+      (mode === 'LIVE' && ['simulation', 'architecture'].includes(activeTab))
+    )
+      setActiveTab('dashboard');
   }, [activeTab, userRole, mode]);
 
-  useEffect(()=>{setDetailRecord(null);setSelectedAssetId(null);setTargetWorkOrderId(null);},[mode,currentUser?.id]);
-  const openRecord=(record:SearchResult)=>{
-    if(!canAccessTab(userRole,record.kind))return;
-    if(record.kind==='fleet'){setSelectedAssetId(record.id);setActiveTab('fleet');}
-    else if(record.kind==='workorders'){setTargetWorkOrderId(record.id);setActiveTab('workorders');}
-    else setDetailRecord(record);
+  useEffect(() => {
+    setDetailRecord(null);
+    setSelectedAssetId(null);
+    setTargetWorkOrderId(null);
+  }, [mode, currentUser?.id]);
+  const openRecord = (record: SearchResult) => {
+    if (!canAccessTab(userRole, record.kind)) return;
+    if (record.kind === 'fleet') {
+      setSelectedAssetId(record.id);
+      setActiveTab('fleet');
+    } else if (record.kind === 'workorders') {
+      setTargetWorkOrderId(record.id);
+      setActiveTab('workorders');
+    } else setDetailRecord(record);
   };
   const handleNavigateTab = (tab: string) => {
-    if (!canAccessTab(userRole, tab) || (mode === 'LIVE' && ['simulation','architecture'].includes(tab))) return;
+    if (
+      !canAccessTab(userRole, tab) ||
+      (mode === 'LIVE' && ['simulation', 'architecture'].includes(tab))
+    )
+      return;
     setActiveTab(tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -63,75 +79,77 @@ const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
       {/* Top Global Navigation Bar */}
-      <Header
-        onNavigateTab={handleNavigateTab}
-        onOpenRecord={openRecord}
-      />
+      <Header onNavigateTab={handleNavigateTab} onOpenRecord={openRecord} />
 
       {!currentUser ? (
         <main className="flex flex-1 items-center justify-center p-6">
           <div className="max-w-md rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
             <h1 className="text-xl font-bold">Sign in to Healix</h1>
-            <p className="mt-3 text-sm text-slate-600">{isSwitchingMode ? 'Checking your session…' : 'Use the Sign in button above to access your machinery dashboard. LIVE and SIMULATION data are available after signing in.'}</p>
+            <p className="mt-3 text-sm text-slate-600">
+              {isSwitchingMode
+                ? 'Checking your session…'
+                : 'Use the Sign in button above to access your machinery dashboard. LIVE and SIMULATION data are available after signing in.'}
+            </p>
           </div>
         </main>
-      ) : <>
-      {detailRecord&&<RecordDetail record={detailRecord} onClose={()=>setDetailRecord(null)}/>}
-      {/* Autonomous Closed-Loop Event Banner (Pops up on self-healing triggers) */}
-      <ClosedLoopBanner onViewWorkOrder={handleViewWorkOrder} />
+      ) : (
+        <>
+          {detailRecord && (
+            <RecordDetail record={detailRecord} onClose={() => setDetailRecord(null)} />
+          )}
+          {/* Autonomous Closed-Loop Event Banner (Pops up on self-healing triggers) */}
+          <ClosedLoopBanner onViewWorkOrder={handleViewWorkOrder} />
 
-      {/* Main Layout Area */}
-      <div className="flex-1 flex overflow-hidden">
-        
-        {/* Collapsible Left Enterprise Sidebar */}
-        <Sidebar
-          activeTab={activeTab}
-          setActiveTab={handleNavigateTab}
-          collapsed={sidebarCollapsed}
-          setCollapsed={setSidebarCollapsed}
-        />
-
-        {/* Content Canvas */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-          {activeTab === 'dashboard' && (
-            <DashboardView
-              onNavigateTab={handleNavigateTab}
-              onSelectAsset={handleSelectAsset}
+          {/* Main Layout Area */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Collapsible Left Enterprise Sidebar */}
+            <Sidebar
+              activeTab={activeTab}
+              setActiveTab={handleNavigateTab}
+              collapsed={sidebarCollapsed}
+              setCollapsed={setSidebarCollapsed}
             />
-          )}
 
-          {mode === 'SIMULATION' && activeTab === 'simulation' && (
-            <SimulationView onNavigateTab={handleNavigateTab} />
-          )}
+            {/* Content Canvas */}
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+              {activeTab === 'dashboard' && (
+                <DashboardView
+                  onNavigateTab={handleNavigateTab}
+                  onSelectAsset={handleSelectAsset}
+                />
+              )}
 
-          {activeTab === 'fleet' && (
-            <FleetView
-              onNavigateTab={handleNavigateTab}
-              selectedAssetId={selectedAssetId}
-              onClearSelection={() => setSelectedAssetId(null)}
-            />
-          )}
+              {mode === 'SIMULATION' && activeTab === 'simulation' && (
+                <SimulationView onNavigateTab={handleNavigateTab} />
+              )}
 
-          {activeTab === 'workorders' && (
-            <WorkOrdersView
-              onNavigateTab={handleNavigateTab}
-              targetWorkOrderId={targetWorkOrderId}
-              onClearSelection={() => setTargetWorkOrderId(null)}
-            />
-          )}
+              {activeTab === 'fleet' && (
+                <FleetView
+                  onNavigateTab={handleNavigateTab}
+                  selectedAssetId={selectedAssetId}
+                  onClearSelection={() => setSelectedAssetId(null)}
+                />
+              )}
 
-          {activeTab === 'ai-rag' && <AiDiagnosticView />}
+              {activeTab === 'workorders' && (
+                <WorkOrdersView
+                  onNavigateTab={handleNavigateTab}
+                  targetWorkOrderId={targetWorkOrderId}
+                  onClearSelection={() => setTargetWorkOrderId(null)}
+                />
+              )}
 
-          {activeTab === 'inventory' && (
-            <InventoryView onNavigateTab={handleNavigateTab} />
-          )}
+              {activeTab === 'ai-rag' && <AiDiagnosticView />}
 
-          {activeTab === 'suppliers' && <SuppliersView />}
+              {activeTab === 'inventory' && <InventoryView onNavigateTab={handleNavigateTab} />}
 
-          {mode === 'SIMULATION' && activeTab === 'architecture' && <ArchitectureInspector />}
-        </main>
-      </div>
-      </>}
+              {activeTab === 'suppliers' && <SuppliersView />}
+
+              {mode === 'SIMULATION' && activeTab === 'architecture' && <ArchitectureInspector />}
+            </main>
+          </div>
+        </>
+      )}
     </div>
   );
 };

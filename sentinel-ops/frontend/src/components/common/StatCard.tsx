@@ -17,7 +17,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   change,
   isPositive = true,
   icon,
-  accentColor = 'border-blue-500'
+  accentColor = 'border-blue-500',
 }) => {
   return (
     <div

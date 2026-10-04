@@ -9,7 +9,7 @@ import {
   Truck,
   Network,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from 'lucide-react';
 import { useSimulation } from '../../context/SimulationContext';
 import { canAccessTab } from '../../services/accessControl';
@@ -25,7 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
   collapsed,
-  setCollapsed
+  setCollapsed,
 }) => {
   const { workOrders, parts, userRole, mode } = useSimulation();
 
@@ -37,50 +37,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'dashboard',
       label: 'Home',
       icon: LayoutDashboard,
-      badge: null
+      badge: null,
     },
     {
       id: 'simulation',
       label: 'Simulation & Override',
       icon: Sliders,
-      badge: 'Demo'
+      badge: 'Demo',
     },
     {
       id: 'fleet',
       label: 'Assets & Machines',
       icon: Cpu,
-      badge: null
+      badge: null,
     },
     {
       id: 'workorders',
       label: 'Work Orders',
       icon: Wrench,
-      badge: openWorkOrdersCount > 0 ? String(openWorkOrdersCount) : null
+      badge: openWorkOrdersCount > 0 ? String(openWorkOrdersCount) : null,
     },
     {
       id: 'ai-rag',
       label: 'AI Diagnostics',
       icon: Brain,
-      badge: null
+      badge: null,
     },
     {
       id: 'inventory',
       label: 'Inventory & Parts',
       icon: Package,
-      badge: lowPartsCount > 0 ? String(lowPartsCount) : null
+      badge: lowPartsCount > 0 ? String(lowPartsCount) : null,
     },
     {
       id: 'suppliers',
       label: 'Suppliers',
       icon: Truck,
-      badge: null
+      badge: null,
     },
     {
       id: 'architecture',
       label: 'Architecture',
       icon: Network,
-      badge: null
-    }
+      badge: null,
+    },
   ];
 
   return (
@@ -102,46 +102,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Nav links */}
       <nav className="flex-1 py-2 px-1.5 space-y-0.5 overflow-y-auto">
-        {navItems.filter((item) => canAccessTab(userRole, item.id) && (mode === 'SIMULATION' || !['simulation', 'architecture'].includes(item.id))).map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
+        {navItems
+          .filter(
+            (item) =>
+              canAccessTab(userRole, item.id) &&
+              (mode === 'SIMULATION' || !['simulation', 'architecture'].includes(item.id)),
+          )
+          .map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              title={collapsed ? item.label : undefined}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-left transition-colors text-xs font-medium ${
-                isActive
-                  ? 'bg-blue-50 text-blue-700 font-semibold'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <Icon
-                className={`w-4 h-4 shrink-0 ${
-                  isActive ? 'text-blue-600' : 'text-slate-400'
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                title={collapsed ? item.label : undefined}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-left transition-colors text-xs font-medium ${
+                  isActive
+                    ? 'bg-blue-50 text-blue-700 font-semibold'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
-              />
+              >
+                <Icon
+                  className={`w-4 h-4 shrink-0 ${isActive ? 'text-blue-600' : 'text-slate-400'}`}
+                />
 
-              {!collapsed && (
-                <div className="flex-1 flex items-center justify-between min-w-0">
-                  <span className="truncate">{item.label}</span>
-                  {item.badge && (
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        isActive
-                          ? 'bg-blue-200 text-blue-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-              )}
-            </button>
-          );
-        })}
+                {!collapsed && (
+                  <div className="flex-1 flex items-center justify-between min-w-0">
+                    <span className="truncate">{item.label}</span>
+                    {item.badge && (
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          isActive ? 'bg-blue-200 text-blue-800' : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+            );
+          })}
       </nav>
 
       {/* Clean quiet footer */}

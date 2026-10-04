@@ -9,7 +9,7 @@ interface HealthScoreGaugeProps {
 export const HealthScoreGauge: React.FC<HealthScoreGaugeProps> = ({
   score,
   size = 80,
-  showLabel = true
+  showLabel = true,
 }) => {
   const strokeWidth = size * 0.1;
   const radius = (size - strokeWidth) / 2;
@@ -32,7 +32,10 @@ export const HealthScoreGauge: React.FC<HealthScoreGaugeProps> = ({
 
   return (
     <div className="flex flex-col items-center justify-center">
-      <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <div
+        className="relative inline-flex items-center justify-center"
+        style={{ width: size, height: size }}
+      >
         <svg width={size} height={size} className="transform -rotate-90">
           <circle
             cx={size / 2}
@@ -56,7 +59,9 @@ export const HealthScoreGauge: React.FC<HealthScoreGaugeProps> = ({
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-sm font-bold text-gray-900 tracking-tight">{Math.round(score)}%</span>
+          <span className="text-sm font-bold text-gray-900 tracking-tight">
+            {Math.round(score)}%
+          </span>
         </div>
       </div>
       {showLabel && (

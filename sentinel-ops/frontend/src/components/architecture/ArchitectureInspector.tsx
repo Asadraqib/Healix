@@ -1,18 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Network,
-  ShieldCheck,
-  Database,
-  Server,
-  Layers,
-  Cpu,
-  FileCode,
-  Terminal,
-  ExternalLink,
-  CheckCircle2,
-  Lock,
-  ArrowRight
-} from 'lucide-react';
+import { ShieldCheck, Database, Layers, Terminal, Lock } from 'lucide-react';
 import { useSimulation } from '../../context/SimulationContext';
 
 export const ArchitectureInspector: React.FC = () => {
@@ -25,84 +12,127 @@ export const ArchitectureInspector: React.FC = () => {
       name: 'Spring Cloud Gateway',
       port: 8080,
       tech: 'Spring Cloud Gateway • Java 25+',
-      description: 'Single browser API entry point. Validates the session JWT and enforces role permissions and mode write restrictions.',
+      description:
+        'Single browser API entry point. Validates the session JWT and enforces role permissions and mode write restrictions.',
       routes: [
         { path: '/api/auth/**', dest: 'auth-service:8084', auth: 'Public' },
         { path: '/api/assets/**', dest: 'asset-service:8081', auth: 'AuthenticationFilter' },
         { path: '/api/parts/**', dest: 'maintenance-service:8082', auth: 'AuthenticationFilter' },
-        { path: '/api/suppliers/**', dest: 'maintenance-service:8082', auth: 'AuthenticationFilter' },
-        { path: '/api/work-orders/**', dest: 'maintenance-service:8082', auth: 'AuthenticationFilter' },
+        {
+          path: '/api/suppliers/**',
+          dest: 'maintenance-service:8082',
+          auth: 'AuthenticationFilter',
+        },
+        {
+          path: '/api/work-orders/**',
+          dest: 'maintenance-service:8082',
+          auth: 'AuthenticationFilter',
+        },
         { path: '/api/ai/**', dest: 'ai-service:8083', auth: 'AuthenticationFilter' },
-        { path: '/api/simulation/**', dest: 'asset-service:8081', auth: 'AuthenticationFilter' }
-      ]
+        { path: '/api/simulation/**', dest: 'asset-service:8081', auth: 'AuthenticationFilter' },
+      ],
     },
     {
       id: 'asset-service',
       name: 'Asset Service',
       port: 8081,
       tech: 'Spring Boot • PostgreSQL (asset schema) • Flyway',
-      description: 'Registers machinery, ingests normalized readings, generates demo telemetry, and persists reading history.',
+      description:
+        'Registers machinery, ingests normalized readings, generates demo telemetry, and persists reading history.',
       routes: [
         { path: 'GET /api/assets', dest: 'List all machinery', auth: 'X-User-Role' },
         { path: 'GET /api/assets/{id}', dest: 'Machine detail & specs', auth: 'X-User-Role' },
-        { path: 'POST /api/assets/{id}/telemetry', dest: 'Ingest equipment readings', auth: 'X-User-Role' }
-      ]
+        {
+          path: 'POST /api/assets/{id}/telemetry',
+          dest: 'Ingest equipment readings',
+          auth: 'X-User-Role',
+        },
+      ],
     },
     {
       id: 'ai-service',
       name: 'AI / RAG Prediction Service',
       port: 8083,
       tech: 'Python • FastAPI • Qdrant • Groq',
-      description: 'Analyzes current maintenance records with the configured Groq provider. Retrieves uploaded document sections from Qdrant with source references.',
+      description:
+        'Analyzes current maintenance records with the configured Groq provider. Retrieves uploaded document sections from Qdrant with source references.',
       routes: [
-        { path: 'POST /api/ai/forecast', dest: 'Explain maintenance risk and recommended checks', auth: 'Edge Header' },
-        { path: 'POST /api/ai/diagnose', dest: 'Qdrant vector retrieval + LLM synthesis', auth: 'Edge Header' }
-      ]
+        {
+          path: 'POST /api/ai/forecast',
+          dest: 'Explain maintenance risk and recommended checks',
+          auth: 'Edge Header',
+        },
+        {
+          path: 'POST /api/ai/diagnose',
+          dest: 'Qdrant vector retrieval + LLM synthesis',
+          auth: 'Edge Header',
+        },
+      ],
     },
     {
       id: 'maintenance-service',
       name: 'Maintenance & Work Orders Service',
       port: 8082,
       tech: 'Spring Boot • PostgreSQL (maintenance schema) • Flyway',
-      description: 'Detects threshold incidents and persists work orders, assignments, resolutions, stock movements, and supplier reorder suggestions.',
+      description:
+        'Detects threshold incidents and persists work orders, assignments, resolutions, stock movements, and supplier reorder suggestions.',
       routes: [
-        { path: 'GET /api/work-orders', dest: 'Query active & resolved tickets', auth: 'X-User-Role' },
-        { path: 'POST /api/work-orders', dest: 'Autonomous closed-loop creation', auth: 'X-User-Role' },
-        { path: 'PATCH /api/work-orders/{id}', dest: 'Update assignment or repair status', auth: 'X-User-Role' }
-      ]
+        {
+          path: 'GET /api/work-orders',
+          dest: 'Query active & resolved tickets',
+          auth: 'X-User-Role',
+        },
+        {
+          path: 'POST /api/work-orders',
+          dest: 'Autonomous closed-loop creation',
+          auth: 'X-User-Role',
+        },
+        {
+          path: 'PATCH /api/work-orders/{id}',
+          dest: 'Update assignment or repair status',
+          auth: 'X-User-Role',
+        },
+      ],
     },
     {
       id: 'simulation-service',
       name: 'Demo telemetry and equipment adapters',
       port: 8081,
       tech: 'Asset service • WebSocket telemetry',
-      description: 'Generated LIVE demo readings are persisted by the asset service. Browser SIMULATION changes stay temporary and do not use these LIVE write routes.',
+      description:
+        'Generated LIVE demo readings are persisted by the asset service. Browser SIMULATION changes stay temporary and do not use these LIVE write routes.',
       routes: [
         { path: 'WS /ws/simulation', dest: 'Live telemetry broadcast', auth: 'Public' },
-        { path: 'POST /api/simulation/{id}/override', dest: 'Inject judge test value', auth: 'X-User-Role' },
-        { path: 'POST /api/simulation/{id}/reset', dest: 'Reset to baseline', auth: 'X-User-Role' }
-      ]
-    }
+        {
+          path: 'POST /api/simulation/{id}/override',
+          dest: 'Inject judge test value',
+          auth: 'X-User-Role',
+        },
+        { path: 'POST /api/simulation/{id}/reset', dest: 'Reset to baseline', auth: 'X-User-Role' },
+      ],
+    },
   ];
 
   const activeServiceData = services.find((s) => s.id === selectedService) || services[0];
 
   return (
     <div className="space-y-6">
-      
       {/* Header Banner */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200/90 shadow-xs">
         <div className="flex items-center gap-2">
           <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold uppercase tracking-wider">
             Enterprise Architecture Blueprint
           </span>
-          <span className="text-xs font-mono text-gray-500">SAP BTP & Siemens Smart Infrastructure Compatible</span>
+          <span className="text-xs font-mono text-gray-500">
+            SAP BTP & Siemens Smart Infrastructure Compatible
+          </span>
         </div>
         <h1 className="text-2xl font-black text-gray-900 mt-1 tracking-tight">
           Microservices Topology & Edge Gateway Routing
         </h1>
         <p className="text-xs text-gray-500 mt-1">
-          Spring Cloud Gateway with perimeter edge authentication, independent Spring Boot services with Flyway schemas, and a Python FastAPI AI layer.
+          Spring Cloud Gateway with perimeter edge authentication, independent Spring Boot services
+          with Flyway schemas, and a Python FastAPI AI layer.
         </p>
       </div>
 
@@ -112,7 +142,8 @@ export const ArchitectureInspector: React.FC = () => {
           <ShieldCheck className="w-5 h-5 text-cyan-400 mb-1" />
           <h4 className="font-bold text-xs text-cyan-200">Edge Perimeter Auth</h4>
           <p className="text-[11px] text-slate-300 mt-1">
-            Gateway verifies the session JWT and applies role permissions. Internal service ports remain on the private container network.
+            Gateway verifies the session JWT and applies role permissions. Internal service ports
+            remain on the private container network.
           </p>
         </div>
 
@@ -120,7 +151,8 @@ export const ArchitectureInspector: React.FC = () => {
           <Database className="w-5 h-5 text-emerald-400 mb-1" />
           <h4 className="font-bold text-xs text-emerald-200">Database per Service</h4>
           <p className="text-[11px] text-slate-300 mt-1">
-            Each Spring service runs on its own isolated Postgres schema with automated Flyway `V1__` migrations.
+            Each Spring service runs on its own isolated Postgres schema with automated Flyway
+            `V1__` migrations.
           </p>
         </div>
 
@@ -128,7 +160,8 @@ export const ArchitectureInspector: React.FC = () => {
           <Layers className="w-5 h-5 text-purple-400 mb-1" />
           <h4 className="font-bold text-xs text-purple-200">FastAPI & Qdrant AI</h4>
           <p className="text-[11px] text-slate-300 mt-1">
-            Uploaded maintenance text persists in Qdrant. Retrieved sections ground provider responses and appear as source references.
+            Uploaded maintenance text persists in Qdrant. Retrieved sections ground provider
+            responses and appear as source references.
           </p>
         </div>
 
@@ -136,14 +169,14 @@ export const ArchitectureInspector: React.FC = () => {
           <Terminal className="w-5 h-5 text-amber-400 mb-1" />
           <h4 className="font-bold text-xs text-amber-200">Container configuration</h4>
           <p className="text-[11px] text-slate-300 mt-1">
-            Docker Compose defines the frontend, Spring services, FastAPI, PostgreSQL, and Qdrant with persistence volumes.
+            Docker Compose defines the frontend, Spring services, FastAPI, PostgreSQL, and Qdrant
+            with persistence volumes.
           </p>
         </div>
       </div>
 
       {/* Interactive Microservice Map & Routing Table */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
         {/* Left Column (4 cols): Services List */}
         <div className="lg:col-span-4 space-y-2">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1">
@@ -180,7 +213,9 @@ export const ArchitectureInspector: React.FC = () => {
                 <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
                   PORT {activeServiceData.port}
                 </span>
-                <span className="text-xs text-gray-500 font-semibold">{activeServiceData.tech}</span>
+                <span className="text-xs text-gray-500 font-semibold">
+                  {activeServiceData.tech}
+                </span>
               </div>
               <h2 className="text-lg font-bold text-gray-900 mt-1">{activeServiceData.name}</h2>
               <p className="text-xs text-gray-600 mt-1 leading-relaxed">
@@ -250,9 +285,7 @@ export const ArchitectureInspector: React.FC = () => {
             </div>
           </div>
         </div>
-
       </div>
-
     </div>
   );
 };

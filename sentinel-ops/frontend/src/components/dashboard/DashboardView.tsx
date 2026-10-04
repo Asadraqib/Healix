@@ -1,16 +1,5 @@
 import React from 'react';
-import {
-  ArrowRight,
-  ShieldCheck,
-  CheckCircle2,
-  AlertTriangle,
-  Sliders,
-  Sparkles,
-  Cpu,
-  Wrench,
-  Clock,
-  Layers
-} from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useSimulation } from '../../context/SimulationContext';
 import { canAccessTab, canPerform } from '../../services/accessControl';
 
@@ -20,13 +9,18 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onSelectAsset }) => {
-  const { assets, workOrders, alarms, triggerFailurePreset, mode, dashboardSummary, userRole } = useSimulation();
+  const { assets, workOrders, alarms, triggerFailurePreset, mode, dashboardSummary, userRole } =
+    useSimulation();
 
   const calculatedHealth = Math.round(
-    assets.reduce((acc, a) => acc + a.healthScore, 0) / (assets.length || 1)
+    assets.reduce((acc, a) => acc + a.healthScore, 0) / (assets.length || 1),
   );
   const avgHealth = dashboardSummary?.fleetHealth ?? calculatedHealth;
-  const onlineCount = assets.filter(a => a.connectionState === 'CONNECTED' || (!a.connectionState && !!a.lastSeenAt && Date.now() - Date.parse(a.lastSeenAt) <= 15000)).length;
+  const onlineCount = assets.filter(
+    (a) =>
+      a.connectionState === 'CONNECTED' ||
+      (!a.connectionState && !!a.lastSeenAt && Date.now() - Date.parse(a.lastSeenAt) <= 15000),
+  ).length;
   const totalCount = dashboardSummary?.assetsTotal ?? assets.length;
   const healthyCount = assets.filter((a) => a.status === 'HEALTHY').length;
   const degradedCount = assets.filter((a) => a.status === 'DEGRADED').length;
@@ -36,11 +30,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      
       {/* 1. Hero Card — Exact Microsoft Defender Theme Reference (Image 3) */}
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="bg-gradient-to-r from-blue-50 via-sky-50/50 to-white p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          
           {/* Left: Clear, Calm Title & Description */}
           <div className="max-w-xl">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
@@ -52,28 +44,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
                 : 'Test threshold alarms and maintenance workflows using temporary simulation records.'}
             </p>
 
-            {mode === 'SIMULATION' && <div className="mt-4 flex items-center gap-3">
-              {canAccessTab(userRole, 'simulation') && <button
-                onClick={() => onNavigateTab('simulation')}
-                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5"
-              >
-                <span>Live Simulation Demo</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>}
+            {mode === 'SIMULATION' && (
+              <div className="mt-4 flex items-center gap-3">
+                {canAccessTab(userRole, 'simulation') && (
+                  <button
+                    onClick={() => onNavigateTab('simulation')}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5"
+                  >
+                    <span>Live Simulation Demo</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
-              <button
-                onClick={() => triggerFailurePreset('CNC_SPINDLE')}
-                disabled={!canPerform(userRole, 'override')}
-                className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-md border border-slate-300 shadow-xs transition-colors"
-              >
-                Trigger Test Anomaly
-              </button>
-            </div>}
+                <button
+                  onClick={() => triggerFailurePreset('CNC_SPINDLE')}
+                  disabled={!canPerform(userRole, 'override')}
+                  className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-md border border-slate-300 shadow-xs transition-colors"
+                >
+                  Trigger Test Anomaly
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Right: Circular Gauges (Defender Circular Progress Style) */}
           <div className="flex items-center gap-8 bg-white/90 backdrop-blur-xs p-4 rounded-xl border border-slate-200/60 shadow-xs shrink-0">
-            
             {/* Circular Gauge 1: Health Index */}
             <div className="flex flex-col items-center">
               <div className="relative w-20 h-20 flex items-center justify-center">
@@ -136,19 +131,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
               </div>
               <span className="text-[11px] font-medium text-slate-500 mt-1">Assets Online</span>
             </div>
-
           </div>
-
         </div>
       </div>
 
       {/* 2. Optimize & Posture Row — Balanced 2-Card Layout (Image 3 Defender Reference) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        
         {/* Card 1: Machine Health Summary */}
         <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-900 tracking-tight">Machinery Status</span>
+            <span className="text-xs font-bold text-slate-900 tracking-tight">
+              Machinery Status
+            </span>
             <span className="text-xs text-slate-500 font-medium">{totalCount} Total Units</span>
           </div>
 
@@ -192,22 +186,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
 
         <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs space-y-4">
           <h2 className="text-sm font-semibold text-slate-900">Maintenance activity</h2>
-          <p className="text-sm text-slate-600">{workOrders.filter(w => w.status !== 'RESOLVED').length} open work orders · {autoOrdersCount} automatically created</p>
-          <p className="text-sm text-slate-600">{alarms.filter(a => !a.resolved_at).length} active alarms</p>
-          {alarms.filter(a => !a.resolved_at).slice(0, 4).map(a => <button key={String(a.id)} onClick={() => onSelectAsset(String(a.asset_id))} className="block text-left text-xs text-amber-800 bg-amber-50 rounded p-2 w-full">{String(a.severity)} · {String(a.message)}</button>)}
-          {canAccessTab(userRole, 'workorders') && <button onClick={() => onNavigateTab('workorders')} className="text-xs text-blue-700 font-semibold">Review work orders →</button>}
+          <p className="text-sm text-slate-600">
+            {workOrders.filter((w) => w.status !== 'RESOLVED').length} open work orders ·{' '}
+            {autoOrdersCount} automatically created
+          </p>
+          <p className="text-sm text-slate-600">
+            {alarms.filter((a) => !a.resolved_at).length} active alarms
+          </p>
+          {alarms
+            .filter((a) => !a.resolved_at)
+            .slice(0, 4)
+            .map((a) => (
+              <button
+                key={String(a.id)}
+                onClick={() => onSelectAsset(String(a.asset_id))}
+                className="block text-left text-xs text-amber-800 bg-amber-50 rounded p-2 w-full"
+              >
+                {String(a.severity)} · {String(a.message)}
+              </button>
+            ))}
+          {canAccessTab(userRole, 'workorders') && (
+            <button
+              onClick={() => onNavigateTab('workorders')}
+              className="text-xs text-blue-700 font-semibold"
+            >
+              Review work orders →
+            </button>
+          )}
         </div>
-
       </div>
 
       {/* 3. Main Data Section: Minimalist Machine List (Microsoft 365 Document Table Style) */}
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
-        
         {/* Header */}
         <div className="p-4 sm:px-6 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-slate-900">Monitored Assets</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Real-time condition and telemetry streaming</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Real-time condition and telemetry streaming
+            </p>
           </div>
           <button
             onClick={() => onNavigateTab('fleet')}
@@ -242,14 +259,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
                   >
                     <td className="py-3 px-6">
                       <div className="font-semibold text-slate-900">{asset.name}</div>
-                      <div className="text-[11px] text-slate-400 font-normal">{asset.assetType}</div>
+                      <div className="text-[11px] text-slate-400 font-normal">
+                        {asset.assetType}
+                      </div>
                     </td>
 
                     <td className="py-3 px-4 text-slate-600">{asset.location}</td>
 
                     <td className="py-3 px-4 font-mono">
                       <span className="font-semibold text-slate-800">
-                        {primarySensor ? `${primarySensor.currentValue} ${primarySensor.unit}` : 'Unavailable'}
+                        {primarySensor
+                          ? `${primarySensor.currentValue} ${primarySensor.unit}`
+                          : 'Unavailable'}
                       </span>
                       <span className="text-[10px] text-slate-400 block font-sans">
                         {primarySensor?.name ?? 'No readings configured'}
@@ -264,8 +285,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
                               asset.healthScore < 60
                                 ? 'bg-rose-500'
                                 : asset.healthScore < 80
-                                ? 'bg-amber-400'
-                                : 'bg-emerald-500'
+                                  ? 'bg-amber-400'
+                                  : 'bg-emerald-500'
                             }`}
                             style={{ width: `${asset.healthScore}%` }}
                           />
@@ -282,8 +303,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
                           asset.status === 'HEALTHY'
                             ? 'bg-emerald-50 text-emerald-700'
                             : asset.status === 'DEGRADED'
-                            ? 'bg-amber-50 text-amber-700'
-                            : 'bg-rose-50 text-rose-700 font-bold'
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-rose-50 text-rose-700 font-bold'
                         }`}
                       >
                         <span
@@ -291,15 +312,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
                             asset.status === 'HEALTHY'
                               ? 'bg-emerald-500'
                               : asset.status === 'DEGRADED'
-                              ? 'bg-amber-400'
-                              : 'bg-rose-500'
+                                ? 'bg-amber-400'
+                                : 'bg-rose-500'
                           }`}
                         />
                         {asset.status === 'HEALTHY'
                           ? 'Healthy'
                           : asset.status === 'DEGRADED'
-                          ? 'Degraded'
-                          : 'Critical'}
+                            ? 'Degraded'
+                            : 'Critical'}
                       </span>
                     </td>
 
@@ -320,9 +341,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, onS
             </tbody>
           </table>
         </div>
-
       </div>
-
     </div>
   );
 };

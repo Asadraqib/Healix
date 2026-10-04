@@ -8,8 +8,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class MeController {
+
   private final JwtService jwt;
-  public MeController(JwtService jwt) { this.jwt = jwt; }
+
+  public MeController(JwtService jwt) {
+    this.jwt = jwt;
+  }
 
   @GetMapping("/api/auth/me")
   public ResponseEntity<?> me(HttpServletRequest request) {
@@ -19,8 +23,16 @@ public class MeController {
       if ("sentinel_token".equals(c.getName())) {
         try {
           var claims = jwt.parse(c.getValue());
-          return ResponseEntity.ok(java.util.Map.of(
-              "id", claims.getSubject(), "email", claims.get("email"), "role", claims.get("role")));
+          return ResponseEntity.ok(
+            java.util.Map.of(
+              "id",
+              claims.getSubject(),
+              "email",
+              claims.get("email"),
+              "role",
+              claims.get("role")
+            )
+          );
         } catch (Exception e) {
           return ResponseEntity.status(401).build();
         }

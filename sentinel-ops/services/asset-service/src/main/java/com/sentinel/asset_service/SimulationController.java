@@ -6,11 +6,18 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/simulation")
 public class SimulationController {
+
   private final SimulationEngine engine;
-  public SimulationController(SimulationEngine engine) { this.engine = engine; }
+
+  public SimulationController(SimulationEngine engine) {
+    this.engine = engine;
+  }
 
   @PostMapping("/{machineId}/override")
-  public Map<String, Object> override(@PathVariable String machineId, @RequestBody Map<String, Object> body) {
+  public Map<String, Object> override(
+    @PathVariable String machineId,
+    @RequestBody Map<String, Object> body
+  ) {
     double value = ((Number) body.getOrDefault("value", 0)).doubleValue();
     int hold = ((Number) body.getOrDefault("holdSeconds", 30)).intValue();
     engine.override(machineId, value, hold);

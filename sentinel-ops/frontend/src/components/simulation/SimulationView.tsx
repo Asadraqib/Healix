@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Sliders,
-  RotateCcw,
-  Zap,
-  Activity,
-  CheckCircle2,
-  AlertTriangle,
-  Flame,
-  Gauge
-} from 'lucide-react';
+import { RotateCcw, Zap, AlertTriangle, Flame, Gauge } from 'lucide-react';
 import { useSimulation } from '../../context/SimulationContext';
 import { Sparkline } from '../common/Sparkline';
 import { canPerform } from '../../services/accessControl';
@@ -21,14 +12,15 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
   const {
     assets,
     applyOverride,
-    resetAssetToBaseline,
     resetFleet,
     activeOverride,
     isSimulating,
     toggleSimulation,
     triggerFailurePreset,
     mode,
-    userRole, alarms, workOrders
+    userRole,
+    alarms,
+    workOrders,
   } = useSimulation();
 
   const [selectedAssetId, setSelectedAssetId] = useState<string>(assets[0].id);
@@ -63,7 +55,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
       selectedSensor.id,
       Number(overrideValue),
       30,
-      `Manual test override on ${selectedSensor.name}`
+      `Manual test override on ${selectedSensor.name}`,
     );
   };
 
@@ -71,12 +63,11 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
   const maxSlider = Math.max(
     (selectedSensor.baseline ?? selectedSensor.currentValue) * 2.2,
     (selectedSensor.criticalThreshold ?? selectedSensor.currentValue) * 1.4,
-    selectedSensor.currentValue * 1.3
+    selectedSensor.currentValue * 1.3,
   );
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      
       {/* Top Header */}
       <div className="bg-white rounded-xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -84,29 +75,35 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             Virtual machinery demonstration
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            This is a temporary copy of the LIVE readings and records captured when you switched modes. Change a reading to demonstrate alarms, automatic work orders, parts usage, and repair resolution. LIVE records stay unchanged.
+            This is a temporary copy of the LIVE readings and records captured when you switched
+            modes. Change a reading to demonstrate alarms, automatic work orders, parts usage, and
+            repair resolution. LIVE records stay unchanged.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          {canPerform(userRole, 'reset') && <button
-            onClick={resetFleet}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Restore captured LIVE snapshot</span>
-          </button>}
+          {canPerform(userRole, 'reset') && (
+            <button
+              onClick={resetFleet}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Restore captured LIVE snapshot</span>
+            </button>
+          )}
 
-          {mode === 'SIMULATION' && <button
-            onClick={toggleSimulation}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              isSimulating
-                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-            }`}
-          >
-            {isSimulating ? 'Pause Stream' : 'Resume Stream'}
-          </button>}
+          {mode === 'SIMULATION' && (
+            <button
+              onClick={toggleSimulation}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                isSimulating
+                  ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              }`}
+            >
+              {isSimulating ? 'Pause Stream' : 'Resume Stream'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -116,7 +113,9 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
             <span className="text-[10px] font-semibold text-slate-400 uppercase">Step 1</span>
             <div className="font-semibold text-slate-800 mt-0.5">Virtual reading</div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Manual changes take effect immediately, even when paused</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Manual changes take effect immediately, even when paused
+            </p>
           </div>
 
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
@@ -134,7 +133,9 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
           >
             <span className="text-[10px] font-semibold text-slate-400 uppercase">Step 3</span>
             <div className="font-semibold mt-0.5">Automatic work order</div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Created once per critical incident; no AI provider required</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Created once per critical incident; no AI provider required
+            </p>
           </div>
 
           <div
@@ -146,18 +147,41 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
           >
             <span className="text-[10px] font-semibold text-slate-400 uppercase">Step 4</span>
             <div className="font-semibold mt-0.5">Record maintenance</div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Assign a worker, record parts used, and resolve the repair</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Assign a worker, record parts used, and resolve the repair
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-3 text-sm"><h2 className="font-semibold">What happens after a failure test?</h2><p className="text-slate-600">{alarms.filter(a=>!a.resolved_at).length} active alarms · {workOrders.filter(w=>w.autoGenerated&&w.status!=='RESOLVED').length} open automatic work orders. A warning creates an alarm; a critical reading also creates a maintenance ticket. Closing a ticket does not create another ticket for the same ongoing incident.</p>{alarms.filter(a=>!a.resolved_at).slice(0,5).map(a=><p key={String(a.id)} className="text-xs text-amber-800">{String(a.severity)} · {String(a.message)}</p>)}<button onClick={()=>onNavigateTab('workorders')} className="text-blue-700 font-semibold text-xs">Open work orders to assign a worker, use parts, and demonstrate a repair →</button></div>
+      <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-3 text-sm">
+        <h2 className="font-semibold">What happens after a failure test?</h2>
+        <p className="text-slate-600">
+          {alarms.filter((a) => !a.resolved_at).length} active alarms ·{' '}
+          {workOrders.filter((w) => w.autoGenerated && w.status !== 'RESOLVED').length} open
+          automatic work orders. A warning creates an alarm; a critical reading also creates a
+          maintenance ticket. Closing a ticket does not create another ticket for the same ongoing
+          incident.
+        </p>
+        {alarms
+          .filter((a) => !a.resolved_at)
+          .slice(0, 5)
+          .map((a) => (
+            <p key={String(a.id)} className="text-xs text-amber-800">
+              {String(a.severity)} · {String(a.message)}
+            </p>
+          ))}
+        <button
+          onClick={() => onNavigateTab('workorders')}
+          className="text-blue-700 font-semibold text-xs"
+        >
+          Open work orders to assign a worker, use parts, and demonstrate a repair →
+        </button>
+      </div>
       {/* Main Simulation Workspace: Clean Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
         {/* Left Column (7 cols): Machine Selector & Live Telemetry Channels */}
         <div className="lg:col-span-7 bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs space-y-4">
-          
           {/* Machine Selection Tabs */}
           <div>
             <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-2">
@@ -204,7 +228,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
 
             {selectedAsset.sensors.map((sensor) => {
               const isSelected = sensor.id === selectedSensorId;
-              const isOver = sensor.criticalThreshold !== undefined &&
+              const isOver =
+                sensor.criticalThreshold !== undefined &&
                 sensor.baseline !== undefined &&
                 (sensor.criticalThreshold > sensor.baseline
                   ? sensor.currentValue >= sensor.criticalThreshold
@@ -224,7 +249,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
                     <div>
                       <span className="font-semibold text-slate-800">{sensor.name}</span>
                       <span className="text-slate-400 text-[11px] block">
-                        Nominal: {sensor.baseline ?? 'Not reported'} {sensor.baseline === undefined ? '' : sensor.unit}
+                        Nominal: {sensor.baseline ?? 'Not reported'}{' '}
+                        {sensor.baseline === undefined ? '' : sensor.unit}
                       </span>
                     </div>
 
@@ -257,12 +283,10 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
               );
             })}
           </div>
-
         </div>
 
         {/* Right Column (5 cols): Clean Manual Override Console */}
         <div className="lg:col-span-5 space-y-4">
-          
           <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs space-y-4">
             <div>
               <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider block">
@@ -287,7 +311,9 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
                 type="range"
                 min={minSlider}
                 max={maxSlider}
-                step={selectedSensor.unit === 'mm' ? 0.005 : selectedSensor.unit === 'RPM' ? 50 : 0.5}
+                step={
+                  selectedSensor.unit === 'mm' ? 0.005 : selectedSensor.unit === 'RPM' ? 50 : 0.5
+                }
                 value={overrideValue}
                 onChange={(e) => setOverrideValue(Number(e.target.value))}
                 className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
@@ -296,7 +322,13 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
               <div className="flex justify-between text-[10px] font-mono text-slate-400">
                 <span>0</span>
                 <span className="text-rose-500 font-semibold">
-                  Critical {selectedSensor.criticalThreshold !== undefined && selectedSensor.baseline !== undefined && selectedSensor.criticalThreshold < selectedSensor.baseline ? '≤' : '≥'} {selectedSensor.criticalThreshold ?? 'Not configured'}
+                  Critical{' '}
+                  {selectedSensor.criticalThreshold !== undefined &&
+                  selectedSensor.baseline !== undefined &&
+                  selectedSensor.criticalThreshold < selectedSensor.baseline
+                    ? '≤'
+                    : '≥'}{' '}
+                  {selectedSensor.criticalThreshold ?? 'Not configured'}
                 </span>
                 <span>{maxSlider.toFixed(0)}</span>
               </div>
@@ -308,7 +340,9 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
               disabled={mode === 'LIVE' && selectedSensor.type.toLowerCase() !== 'temperature'}
               className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-md shadow-xs transition-colors"
             >
-              {mode === 'LIVE' && selectedSensor.type.toLowerCase() !== 'temperature' ? 'Live override supports temperature only' : 'Push Value to Machine'}
+              {mode === 'LIVE' && selectedSensor.type.toLowerCase() !== 'temperature'
+                ? 'Live override supports temperature only'
+                : 'Push Value to Machine'}
             </button>
 
             {activeOverride && (
@@ -332,7 +366,9 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             >
               <div>
                 <span className="font-medium text-slate-800">Spindle Bearing Flaking</span>
-                <p className="text-[10px] text-slate-500">Push the configured vibration sensor above its critical limit</p>
+                <p className="text-[10px] text-slate-500">
+                  Push the configured vibration sensor above its critical limit
+                </p>
               </div>
               <Zap className="w-3.5 h-3.5 text-blue-600" />
             </button>
@@ -344,7 +380,9 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             >
               <div>
                 <span className="font-medium text-slate-800">Inverter Thermal Overheat</span>
-                <p className="text-[10px] text-slate-500">Push the configured temperature sensor above its critical limit</p>
+                <p className="text-[10px] text-slate-500">
+                  Push the configured temperature sensor above its critical limit
+                </p>
               </div>
               <Flame className="w-3.5 h-3.5 text-amber-500" />
             </button>
@@ -356,16 +394,15 @@ export const SimulationView: React.FC<SimulationViewProps> = ({ onNavigateTab })
             >
               <div>
                 <span className="font-medium text-slate-800">Hydraulic Pressure Spike</span>
-                <p className="text-[10px] text-slate-500">Push the configured pressure sensor above its critical limit</p>
+                <p className="text-[10px] text-slate-500">
+                  Push the configured pressure sensor above its critical limit
+                </p>
               </div>
               <Gauge className="w-3.5 h-3.5 text-cyan-600" />
             </button>
           </div>
-
         </div>
-
       </div>
-
     </div>
   );
 };

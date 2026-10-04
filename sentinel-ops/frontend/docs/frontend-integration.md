@@ -1,49 +1,125 @@
-# Frontend and Spring Boot Integration
+# Frontend and backend integration
 
-Run Vite from this directory with `npm run dev`. The checked-in example uses the existing local service addresses:
+For installation and container instructions, see [the project guide](../../MAINTENANCE-UPGRADE.md).
 
-```dotenv
-VITE_API_BASE_URL=http://localhost:8080/api
-VITE_WS_URL=ws://localhost:8081/ws/simulation
+## Start locally
+
+Start the backend from `sentinel-ops`:
+
+```powershell
+.\scripts\start-local.ps1 -BackendOnly
 ```
 
-The header switches between `SIMULATION` and `LIVE` without restarting Vite. LIVE mode uses the Spring Cloud Gateway for REST and connects directly to the asset service WebSocket because the gateway does not proxy WebSockets. Use `localhost` rather than `127.0.0.1`; the backend CORS configuration allows `http://localhost:*`.
+Start the frontend in a separate terminal:
 
-## REST contract
+```powershell
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1
+```
 
-| Method | Path | Frontend behavior |
-|---|---|---|
-| `GET` | `/api/auth/me` | Read the current cookie session |
-| `POST` | `/api/auth/login` | Sign in and receive the HttpOnly `sentinel_token` cookie |
-| `POST` | `/api/auth/logout` | Clear the cookie session |
-| `GET` | `/api/assets` | Load asset records |
-| `GET` | `/api/dashboard/summary` | Load live fleet totals, health, alarms, and trend |
-| `GET` | `/api/work-orders` | Load maintenance work orders |
-| `POST` | `/api/work-orders` | Create with `assetId`, `title`, optional `priority`, `owner`, and `due` |
-| `GET` | `/api/parts` | Load inventory records |
-| `GET` | `/api/suppliers` | Load supplier records |
-| `POST` | `/api/simulation/{machineId}/override` | Send `value` and optional `holdSeconds` |
-| `POST` | `/api/simulation/{machineId}/reset` | Reset a simulated machine |
-| `POST` | `/api/ai/diagnose` | Send `machineId` and `question` to the AI service |
+Open **http://127.0.0.1:5173/**. Starting Vite alone does not start the backend.
 
-All browser REST calls include credentials; JWTs are not stored in JavaScript. The app maps service DTOs into the existing UI model and does not invent missing telemetry fields. The current services do not expose work-order status updates or inventory reorder operations, so those actions remain simulation-only.
+## Development proxies
 
-## Accounts and role access
+| Browser path | Backend destination | Purpose |
+| --- | --- | --- |
+| `/api` | `http://127.0.0.1:8080` | REST through the gateway |
+| `/ws` | `ws://127.0.0.1:8081` | Asset telemetry stream |
 
-The account menu provides sign-out through `POST /api/auth/logout`. Registration sends only the supported `name`, `email`, and `password` fields to `POST /api/auth/register`; the auth service assigns new accounts the `VIEWER` role. The client does not offer self-selection of elevated roles. An administrator must assign an elevated role through a trusted server-side process.
+Use the existing same-origin defaults. `VITE_API_BASE_URL` and `VITE_WS_URL` optionally override them. Both `localhost` and `127.0.0.1` refer to this computer; keep one hostname throughout a session for the authentication cookie.
 
-Navigation and action controls are filtered by the role returned from `/api/auth/me`. The current gateway validates that a session exists but does not enforce per-role authorization on REST routes. These client-side restrictions are therefore usability controls, not a security boundary; enforce the same role matrix in the backend before using it for sensitive operations.
+## Authentication and permissions
 
-| Role | Available workspace | Mutations |
-|---|---|---|
-| `ADMIN` | All pages | All supported actions |
-| `RELIABILITY_ENGINEER` | All pages | Overrides, resets, work orders, inventory simulation, and AI diagnosis |
-| `TECHNICIAN` | Dashboard, simulation, assets, work orders, inventory | Overrides, resets, and work-order actions |
-| `EXECUTIVE_VIEWER` | Dashboard, assets, work orders, suppliers, architecture | Read-only |
-| `VIEWER` | Dashboard and assets | Read-only |
+- Sign in before viewing either mode.
+- REST requests include the HttpOnly `sentinel_token` cookie; JWTs are not stored in JavaScript.
+- Registration accepts `name`, `email`, and `password`. New accounts receive `VIEWER`.
+- Provision elevated roles through a trusted backend process.
+- The gateway enforces role permissions; frontend controls also reflect the account role.
 
-Only `ADMIN` and `VIEWER` are currently issued by the auth service; the other roles are supported by the client if provisioned by a trusted backend process.
+| Role | Main access | LIVE actions |
+| --- | --- | --- |
+| `ADMIN` | All available pages | All supported actions |
+| `RELIABILITY_ENGINEER` | All available pages | Maintenance, inventory, suppliers, AI |
+| `TECHNICIAN` | Dashboard, assets, work orders, inventory | Work-order actions and parts consumption |
+| `EXECUTIVE_VIEWER` | Dashboard, assets, work orders, suppliers | Read-only records |
+| `VIEWER` | Dashboard and assets | Read-only records |
 
-## Telemetry WebSocket
+Architecture and failure demonstration pages appear only in SIMULATION. Simulation role previews do not elevate the backend account.
 
-Connect to `ws://localhost:8081/ws/simulation`. Messages include `machineId`, `sensorType`, `value`, `healthScore`, `status`, and `recordedAt`. The client reconnects after disconnects. The current scheduler publishes temperature messages; the override endpoint changes temperature only.
+## Mode behavior
+
+| Behavior | LIVE | SIMULATION |
+| --- | --- | --- |
+| Starting records | Backend records | Copy of current displayed LIVE records |
+| Readings | Backend-generated demo telemetry | Captured readings with temporary overrides |
+| Operational actions | Persisted in PostgreSQL | Isolated browser state |
+| Documents | Persistent Qdrant library | Separate in-memory session library |
+| Reload or exit | Restore persistent records | Discard temporary changes |
+
+Critical incidents generate automatic work orders without an AI call. Incident links prevent duplicate tickets. Simulation faults evaluate immediately, including while paused.
+
+## REST contracts
+
+All paths below use the gateway origin. `src/services/domainAdapters.ts` maps DTOs to frontend models.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/auth/me` | Account and role |
+| `POST` | `/api/auth/login` | Sign in |
+| `POST` | `/api/auth/register` | Register a viewer |
+| `POST` | `/api/auth/logout` | Sign out |
+| `GET` | `/api/assets` | Fleet and readings |
+| `GET` | `/api/dashboard/summary` | Fleet totals and trend |
+| `GET`, `POST` | `/api/work-orders` | List or create work orders |
+| `GET` | `/api/parts` | Inventory |
+| `GET` | `/api/parts/movements` | Recent stock movements |
+| `GET` | `/api/suppliers` | Supplier directory |
+| `POST` | `/api/suppliers/orders/{id}/receive` | Receive a supplier suggestion once |
+| `GET`, `POST` | `/api/ai/documents` | List or attach documents |
+| `DELETE` | `/api/ai/documents/{id}` | Remove a document |
+| `DELETE` | `/api/ai/documents/simulation/{sessionId}` | Reset a temporary library |
+| `POST` | `/api/ai/chat` | Maintenance question |
+
+Work-order status, assignments, parts usage, notifications, and AI analysis/forecast/draft calls are wrapped in `src/services/liveApi.ts`. Simulation operational actions use local context services rather than LIVE write endpoints.
+
+## Telemetry
+
+The browser connects through `/ws/simulation`. Messages include machine and sensor identity, readings, timestamps, status, and telemetry source.
+
+- Generated LIVE updates arrive approximately every four seconds.
+- Shared handling validates and smooths incoming readings.
+- Delayed or disconnected machines retain their last valid reading.
+- Missing readings are never replaced with zero or random values.
+- Generated demo readings are labeled and do not represent physical equipment.
+
+## Documents and AI
+
+Attach PDF, DOCX, UTF-8 TXT, or Markdown files up to **10 MB**. The gateway forwards multipart bytes unchanged; the AI service validates size and format. Scanned PDFs require OCR first.
+
+Leave `QDRANT_URL`, `QDRANT_API_KEY`, and `QDRANT_PATH` blank for local embedded storage. Set a URL and optional key for an external server. Provider keys stay on the backend.
+
+AI results have loading, error, and unavailable states. Review a drafted work order before saving it. Suggested parts are not automatically consumed.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Port 8081 refused | Start the backend services |
+| Gateway unreachable | `/actuator/health` on port 8080 |
+| Sign-in issues | One hostname; auth service on port 8084 |
+| Upload fails | Displayed error, supported format, 10 MB limit |
+| Library unavailable | `/api/ai/health` on port 8083 and Qdrant settings |
+| Too many requests | `Retry-After`; gateway and provider quotas are separate |
+
+## Frontend checks
+
+Run from `frontend`:
+
+```powershell
+npm run lint
+npm run build
+npm run test:telemetry
+node tests/searchRecords.test.mjs
+node --experimental-strip-types tests/simulationWorkflow.test.mjs
+```

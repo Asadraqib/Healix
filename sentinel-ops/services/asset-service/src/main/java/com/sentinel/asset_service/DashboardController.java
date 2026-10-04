@@ -6,21 +6,43 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class DashboardController {
+
   private final SimulationEngine engine;
-  public DashboardController(SimulationEngine engine) { this.engine = engine; }
+
+  public DashboardController(SimulationEngine engine) {
+    this.engine = engine;
+  }
 
   @GetMapping("/api/dashboard/summary")
   public Map<String, Object> summary() {
     var states = engine.all();
     int total = states.size();
-    long alarms = states.stream().filter(s -> "Warning".equals(s.status) || "Fault".equals(s.status)).count();
-    int avgHealth = (int) states.stream().mapToInt(s -> s.health).average().orElse(0);
+    long alarms = states
+      .stream()
+      .filter(s -> "Warning".equals(s.status) || "Fault".equals(s.status))
+      .count();
+    int avgHealth = (int) states
+      .stream()
+      .mapToInt(s -> s.health)
+      .average()
+      .orElse(0);
     return Map.of(
-        "assetsOnline", states.stream().filter(s -> s.lastSeenAt != null && s.lastSeenAt.isAfter(java.time.Instant.now().minusSeconds(15))).count(),
-        "assetsTotal", total,
-        "fleetHealth", avgHealth,
-        "activeAlarms", alarms,
-        "healthTrend", engine.healthHistory()
+      "assetsOnline",
+      states
+        .stream()
+        .filter(
+          s ->
+            s.lastSeenAt != null && s.lastSeenAt.isAfter(java.time.Instant.now().minusSeconds(15))
+        )
+        .count(),
+      "assetsTotal",
+      total,
+      "fleetHealth",
+      avgHealth,
+      "activeAlarms",
+      alarms,
+      "healthTrend",
+      engine.healthHistory()
     );
   }
 }

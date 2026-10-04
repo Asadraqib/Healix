@@ -1,20 +1,14 @@
 import React, { FormEvent, useEffect, useRef, useState } from 'react';
 import {
-  Wrench,
   CheckCircle2,
-  Clock,
-  AlertTriangle,
   UserCheck,
   Package,
   Cpu,
   Zap,
-  ArrowRight,
-  Filter,
   Search,
   FileText,
-  RotateCcw,
   Plus,
-  X
+  X,
 } from 'lucide-react';
 import { useSimulation } from '../../context/SimulationContext';
 import { StatusBadge } from '../common/StatusBadge';
@@ -27,18 +21,31 @@ interface WorkOrdersViewProps {
   onClearSelection?: () => void;
 }
 
-export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, targetWorkOrderId, onClearSelection }) => {
-  const { workOrders, updateWorkOrderStatus, parts, resetAssetToBaseline, assets, mode, createWorkOrder, assignWorkOrder, adjustInventoryPart, userRole } = useSimulation();
+export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
+  onNavigateTab,
+  targetWorkOrderId,
+}) => {
+  const {
+    workOrders,
+    updateWorkOrderStatus,
+    parts,
+    assets,
+    mode,
+    createWorkOrder,
+    assignWorkOrder,
+    adjustInventoryPart,
+    userRole,
+  } = useSimulation();
   const canManageWorkOrders = canPerform(userRole, 'updateWorkOrder');
 
-  const [usagePart,setUsagePart]=useState('');
-  const [usageQuantity,setUsageQuantity]=useState(1);
-  const [worker,setWorker]=useState('');
-  const [actionPending,setActionPending]=useState(false);
+  const [usagePart, setUsagePart] = useState('');
+  const [usageQuantity, setUsageQuantity] = useState(1);
+  const [worker, setWorker] = useState('');
+  const [actionPending, setActionPending] = useState(false);
   const [searchQuery, setSearchQuery] = useState(targetWorkOrderId || '');
   const [statusFilter, setStatusFilter] = useState<'ALL' | WorkOrderStatus>('ALL');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(
-    targetWorkOrderId ? workOrders.find((w) => w.id === targetWorkOrderId) || null : null
+    targetWorkOrderId ? workOrders.find((w) => w.id === targetWorkOrderId) || null : null,
   );
   const [showCreateOrder, setShowCreateOrder] = useState(false);
   const [newAssetId, setNewAssetId] = useState(assets[0]?.id ?? '');
@@ -49,11 +56,31 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {setSearchQuery(targetWorkOrderId ?? '');setSelectedOrder(targetWorkOrderId ? workOrders.find(w => w.id === targetWorkOrderId) ?? null : null);},[targetWorkOrderId]);
+  useEffect(() => {
+    setSearchQuery(targetWorkOrderId ?? '');
+    setSelectedOrder(
+      targetWorkOrderId ? (workOrders.find((w) => w.id === targetWorkOrderId) ?? null) : null,
+    );
+  }, [targetWorkOrderId]);
   const previousMode = useRef(mode);
-  useEffect(() => {if(previousMode.current!==mode){setSelectedOrder(null);setCreateError(null);previousMode.current=mode;}},[mode]);
-  useEffect(()=>{if(selectedOrder){const current=workOrders.find(w=>w.id===selectedOrder.id);if(current)setSelectedOrder(current);}},[workOrders]);
-  useEffect(()=>{setWorker(selectedOrder?.assignedTechnician??'');setUsagePart('');setCreateError(null);},[selectedOrder?.id]);
+  useEffect(() => {
+    if (previousMode.current !== mode) {
+      setSelectedOrder(null);
+      setCreateError(null);
+      previousMode.current = mode;
+    }
+  }, [mode]);
+  useEffect(() => {
+    if (selectedOrder) {
+      const current = workOrders.find((w) => w.id === selectedOrder.id);
+      if (current) setSelectedOrder(current);
+    }
+  }, [workOrders]);
+  useEffect(() => {
+    setWorker(selectedOrder?.assignedTechnician ?? '');
+    setUsagePart('');
+    setCreateError(null);
+  }, [selectedOrder?.id]);
   const filteredOrders = workOrders.filter((wo) => {
     const matchesSearch =
       wo.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -68,7 +95,6 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
 
   const handleResolveOrder = (order: WorkOrder) => {
     updateWorkOrderStatus(order.id, 'RESOLVED');
-
   };
 
   const handleCreateOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -81,7 +107,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
         title: newTitle,
         priority: newPriority,
         ...(newOwner ? { owner: newOwner } : {}),
-        ...(newDue ? { due: newDue } : {})
+        ...(newDue ? { due: newDue } : {}),
       });
       setShowCreateOrder(false);
       setNewTitle('');
@@ -96,13 +122,10 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
 
   return (
     <div className="space-y-6">
-      
       {/* Header Banner */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 mt-1 tracking-tight">
-            Work orders
-          </h1>
+          <h1 className="text-2xl font-black text-gray-900 mt-1 tracking-tight">Work orders</h1>
           <p className="text-xs text-gray-500 mt-1">
             {mode === 'LIVE'
               ? 'Track assignments, repair progress, triggering readings, and parts used. Changes are saved permanently.'
@@ -124,48 +147,53 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
           </div>
 
           <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg text-xs overflow-x-auto">
-            {(['ALL', 'AUTO_GENERATED', 'SCHEDULED', 'IN_PROGRESS', 'RESOLVED'] as const).map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setStatusFilter(filter)}
-                className={`px-2.5 py-1 rounded-md font-semibold whitespace-nowrap transition-all ${
-                  statusFilter === filter
-                    ? 'bg-white text-gray-900 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                {filter === 'ALL'
-                  ? 'All'
-                  : filter === 'AUTO_GENERATED'
-                  ? 'AI Generated'
-                  : filter === 'SCHEDULED'
-                  ? 'Scheduled'
-                  : filter === 'IN_PROGRESS'
-                  ? 'In Progress'
-                  : 'Resolved'}
-              </button>
-            ))}
+            {(['ALL', 'AUTO_GENERATED', 'SCHEDULED', 'IN_PROGRESS', 'RESOLVED'] as const).map(
+              (filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setStatusFilter(filter)}
+                  className={`px-2.5 py-1 rounded-md font-semibold whitespace-nowrap transition-all ${
+                    statusFilter === filter
+                      ? 'bg-white text-gray-900 shadow-xs'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  {filter === 'ALL'
+                    ? 'All'
+                    : filter === 'AUTO_GENERATED'
+                      ? 'AI Generated'
+                      : filter === 'SCHEDULED'
+                        ? 'Scheduled'
+                        : filter === 'IN_PROGRESS'
+                          ? 'In Progress'
+                          : 'Resolved'}
+                </button>
+              ),
+            )}
           </div>
 
-          {canPerform(userRole, 'createWorkOrder') && <button
-            onClick={() => setShowCreateOrder(true)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800"
-          >
-            <Plus className="h-3.5 w-3.5" /> New Work Order
-          </button>}
+          {canPerform(userRole, 'createWorkOrder') && (
+            <button
+              onClick={() => setShowCreateOrder(true)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800"
+            >
+              <Plus className="h-3.5 w-3.5" /> New Work Order
+            </button>
+          )}
         </div>
       </div>
 
       {/* Main Content: Orders List + Selected Order Detail Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
         {/* Left Column (7 cols): Work Orders List */}
         <div className="lg:col-span-7 space-y-3">
           {filteredOrders.length === 0 ? (
             <div className="bg-white rounded-2xl p-12 text-center border border-gray-200 text-gray-500">
               <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
               <p className="font-bold text-gray-800">No matching work orders found</p>
-              <p className="text-xs text-gray-400 mt-1">Try resetting the status filter or search query</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Try resetting the status filter or search query
+              </p>
             </div>
           ) : (
             filteredOrders.map((wo) => {
@@ -198,11 +226,18 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
                     </div>
 
                     <div className="text-right text-[11px] text-gray-400 font-mono shrink-0">
-                      {wo.createdAt ? new Date(wo.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Time not reported'}
+                      {wo.createdAt
+                        ? new Date(wo.createdAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : 'Time not reported'}
                     </div>
                   </div>
 
-                  <p className="text-xs text-gray-600 mt-2 line-clamp-2">{wo.description ?? 'Description not provided by service.'}</p>
+                  <p className="text-xs text-gray-600 mt-2 line-clamp-2">
+                    {wo.description ?? 'Description not provided by service.'}
+                  </p>
 
                   <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-3 text-gray-500">
@@ -212,7 +247,9 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
                       </span>
                       <span className="flex items-center gap-1">
                         <Package className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="truncate max-w-[140px]">{wo.partRequired ?? 'Part not reported'}</span>
+                        <span className="truncate max-w-[140px]">
+                          {wo.partRequired ?? 'Part not reported'}
+                        </span>
                       </span>
                     </div>
 
@@ -268,49 +305,175 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
                     <span>Recommended action</span>
                   </span>
                   <span className="font-mono bg-indigo-200/60 px-1.5 py-0.2 rounded text-[10px]">
-                    {selectedOrder.aiConfidence === undefined ? 'Confidence not reported' : `${(selectedOrder.aiConfidence * 100).toFixed(0)}% Confidence`}
+                    {selectedOrder.aiConfidence === undefined
+                      ? 'Confidence not reported'
+                      : `${(selectedOrder.aiConfidence * 100).toFixed(0)}% Confidence`}
                   </span>
                 </div>
-                <p className="text-indigo-900/90 leading-relaxed">{selectedOrder.aiRootCause ?? 'No recommended action recorded.'}</p>
+                <p className="text-indigo-900/90 leading-relaxed">
+                  {selectedOrder.aiRootCause ?? 'No recommended action recorded.'}
+                </p>
               </div>
 
-              {selectedOrder.description && <p className="text-xs text-slate-600 leading-relaxed">{selectedOrder.description}</p>}
-              {Object.keys(selectedOrder.triggerReadings ?? {}).length > 0 && <div className="text-xs border rounded-lg p-3"><h3 className="font-semibold mb-2">Triggering readings</h3>{Object.entries(selectedOrder.triggerReadings ?? {}).map(([sensor,value]) => <p key={sensor}>{assets.find(a => a.id === selectedOrder.assetId)?.sensors.find(s => s.id === sensor)?.name ?? sensor}: {value}</p>)}</div>}
+              {selectedOrder.description && (
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {selectedOrder.description}
+                </p>
+              )}
+              {Object.keys(selectedOrder.triggerReadings ?? {}).length > 0 && (
+                <div className="text-xs border rounded-lg p-3">
+                  <h3 className="font-semibold mb-2">Triggering readings</h3>
+                  {Object.entries(selectedOrder.triggerReadings ?? {}).map(([sensor, value]) => (
+                    <p key={sensor}>
+                      {assets
+                        .find((a) => a.id === selectedOrder.assetId)
+                        ?.sensors.find((s) => s.id === sensor)?.name ?? sensor}
+                      : {value}
+                    </p>
+                  ))}
+                </div>
+              )}
               {/* Ticket Metadata */}
               <div className="space-y-2 text-xs">
                 <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
                   <span className="text-gray-500">Asset Location:</span>
-                  <span className="font-semibold text-gray-800">{assets.find((asset) => asset.id === selectedOrder.assetId)?.location ?? 'Not reported'}</span>
+                  <span className="font-semibold text-gray-800">
+                    {assets.find((asset) => asset.id === selectedOrder.assetId)?.location ??
+                      'Not reported'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
                   <span className="text-gray-500">Assigned Technician:</span>
-                  <span className="font-semibold text-gray-800">{selectedOrder.assignedTechnician ?? 'Not reported'}</span>
+                  <span className="font-semibold text-gray-800">
+                    {selectedOrder.assignedTechnician ?? 'Not reported'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
                   <span className="text-gray-500">Required Spare Part:</span>
-                  <span className="font-semibold text-gray-800">{selectedOrder.partRequired ?? 'Not reported'}</span>
+                  <span className="font-semibold text-gray-800">
+                    {selectedOrder.partRequired ?? 'Not reported'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
                   <span className="text-gray-500">Inventory Status:</span>
                   <span className="font-semibold text-emerald-600 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
-                    <span>{selectedOrder.partReserved ? 'Reserved' : 'Parts are consumed when recorded'}</span>
+                    <span>
+                      {selectedOrder.partReserved ? 'Reserved' : 'Parts are consumed when recorded'}
+                    </span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-1.5">
                   <span className="text-gray-500">Created:</span>
                   <span className="font-mono text-gray-800">
-                    {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString() : 'Not reported'}
+                    {selectedOrder.createdAt
+                      ? new Date(selectedOrder.createdAt).toLocaleString()
+                      : 'Not reported'}
                   </span>
                 </div>
               </div>
 
-              {canManageWorkOrders && <div className="border-t pt-4 space-y-3">
-                <form onSubmit={e=>{e.preventDefault();setActionPending(true);void assignWorkOrder(selectedOrder.id,worker).catch(e=>setCreateError(e.message)).finally(()=>setActionPending(false));}} className="flex gap-2"><input value={worker} onChange={e=>setWorker(e.target.value)} required maxLength={80} aria-label="Assigned worker" placeholder="Assigned worker" className="border rounded p-2 flex-1 min-w-0"/><button disabled={actionPending} className="bg-blue-700 text-white rounded px-3">Assign</button></form>
-                <label className="block">Status<select value={selectedOrder.status} onChange={e=>updateWorkOrderStatus(selectedOrder.id,e.target.value as WorkOrderStatus)} className="block w-full border rounded p-2 mt-1">{['AUTO_GENERATED','ASSIGNED','SCHEDULED','IN_PROGRESS','RESOLVED'].map(status=><option key={status}>{status}</option>)}</select></label>
-                {selectedOrder.status!=='RESOLVED'&&<form onSubmit={e=>{e.preventDefault();setActionPending(true);void adjustInventoryPart(usagePart,-usageQuantity,selectedOrder.id).then(()=>setCreateError(null)).catch(e=>setCreateError(e.message)).finally(()=>setActionPending(false));}} className="space-y-2"><label className="block font-semibold">Record parts used<select value={usagePart} onChange={e=>setUsagePart(e.target.value)} required className="block border rounded p-2 mt-1 w-full"><option value="">Select compatible part</option>{parts.filter(p=>p.compatibleAssets?.includes(selectedOrder.assetId)).map(p=><option key={p.id} value={p.id}>{p.name} ({p.quantityOnHand} available)</option>)}</select></label><div className="flex gap-2"><input value={usageQuantity} onChange={e=>setUsageQuantity(Number(e.target.value))} type="number" min={1} step={1} required aria-label="Parts used quantity" className="border rounded p-2 w-24"/><button disabled={actionPending||!usagePart} className="bg-blue-700 text-white rounded px-3 py-2 disabled:opacity-50">Record usage</button></div></form>}
-                {createError&&<p role="alert" className="text-rose-700">{createError}</p>}
-              </div>}
+              {canManageWorkOrders && (
+                <div className="border-t pt-4 space-y-3">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setActionPending(true);
+                      void assignWorkOrder(selectedOrder.id, worker)
+                        .catch((e) => setCreateError(e.message))
+                        .finally(() => setActionPending(false));
+                    }}
+                    className="flex gap-2"
+                  >
+                    <input
+                      value={worker}
+                      onChange={(e) => setWorker(e.target.value)}
+                      required
+                      maxLength={80}
+                      aria-label="Assigned worker"
+                      placeholder="Assigned worker"
+                      className="border rounded p-2 flex-1 min-w-0"
+                    />
+                    <button
+                      disabled={actionPending}
+                      className="bg-blue-700 text-white rounded px-3"
+                    >
+                      Assign
+                    </button>
+                  </form>
+                  <label className="block">
+                    Status
+                    <select
+                      value={selectedOrder.status}
+                      onChange={(e) =>
+                        updateWorkOrderStatus(selectedOrder.id, e.target.value as WorkOrderStatus)
+                      }
+                      className="block w-full border rounded p-2 mt-1"
+                    >
+                      {['AUTO_GENERATED', 'ASSIGNED', 'SCHEDULED', 'IN_PROGRESS', 'RESOLVED'].map(
+                        (status) => (
+                          <option key={status}>{status}</option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                  {selectedOrder.status !== 'RESOLVED' && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        setActionPending(true);
+                        void adjustInventoryPart(usagePart, -usageQuantity, selectedOrder.id)
+                          .then(() => setCreateError(null))
+                          .catch((e) => setCreateError(e.message))
+                          .finally(() => setActionPending(false));
+                      }}
+                      className="space-y-2"
+                    >
+                      <label className="block font-semibold">
+                        Record parts used
+                        <select
+                          value={usagePart}
+                          onChange={(e) => setUsagePart(e.target.value)}
+                          required
+                          className="block border rounded p-2 mt-1 w-full"
+                        >
+                          <option value="">Select compatible part</option>
+                          {parts
+                            .filter((p) => p.compatibleAssets?.includes(selectedOrder.assetId))
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({p.quantityOnHand} available)
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          value={usageQuantity}
+                          onChange={(e) => setUsageQuantity(Number(e.target.value))}
+                          type="number"
+                          min={1}
+                          step={1}
+                          required
+                          aria-label="Parts used quantity"
+                          className="border rounded p-2 w-24"
+                        />
+                        <button
+                          disabled={actionPending || !usagePart}
+                          className="bg-blue-700 text-white rounded px-3 py-2 disabled:opacity-50"
+                        >
+                          Record usage
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                  {createError && (
+                    <p role="alert" className="text-rose-700">
+                      {createError}
+                    </p>
+                  )}
+                </div>
+              )}
               {/* Action Buttons for Lifecycle */}
               <div className="pt-3 border-t border-gray-100 space-y-2">
                 {!canManageWorkOrders ? (
@@ -355,55 +518,118 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ onNavigateTab, t
             </div>
           ) : (
             <div className="bg-gray-50 rounded-2xl p-8 text-center border border-gray-200 text-gray-400 text-xs">
-              Select a work order on the left to inspect AI diagnosis, spare parts, and remediation procedures.
+              Select a work order on the left to inspect AI diagnosis, spare parts, and remediation
+              procedures.
             </div>
           )}
         </div>
-
       </div>
 
       {showCreateOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isCreating) setShowCreateOrder(false); }}>
-          <form onSubmit={(event) => void handleCreateOrder(event)} className="w-full max-w-lg space-y-4 rounded-lg border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isCreating) setShowCreateOrder(false);
+          }}
+        >
+          <form
+            onSubmit={(event) => void handleCreateOrder(event)}
+            className="w-full max-w-lg space-y-4 rounded-lg border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl"
+          >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 className="text-base font-bold">Create work order</h2>
-              <button type="button" disabled={isCreating} onClick={() => setShowCreateOrder(false)} aria-label="Close create work order dialog" className="p-1 text-slate-500 hover:text-slate-900"><X className="h-4 w-4" /></button>
+              <button
+                type="button"
+                disabled={isCreating}
+                onClick={() => setShowCreateOrder(false)}
+                aria-label="Close create work order dialog"
+                className="p-1 text-slate-500 hover:text-slate-900"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
             <label className="block text-xs font-semibold text-slate-700">
               Asset
-              <select required value={newAssetId} onChange={(event) => setNewAssetId(event.target.value)} className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal">
-                {assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+              <select
+                required
+                value={newAssetId}
+                onChange={(event) => setNewAssetId(event.target.value)}
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal"
+              >
+                {assets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.name}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="block text-xs font-semibold text-slate-700">
               Title
-              <input required value={newTitle} onChange={(event) => setNewTitle(event.target.value)} className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal" />
+              <input
+                required
+                value={newTitle}
+                onChange={(event) => setNewTitle(event.target.value)}
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal"
+              />
             </label>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <label className="block text-xs font-semibold text-slate-700">
                 Priority
-                <select value={newPriority} onChange={(event) => setNewPriority(event.target.value as WorkOrderSeverity)} className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal">
-                  {(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+                <select
+                  value={newPriority}
+                  onChange={(event) => setNewPriority(event.target.value as WorkOrderSeverity)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal"
+                >
+                  {(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map((priority) => (
+                    <option key={priority} value={priority}>
+                      {priority}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="block text-xs font-semibold text-slate-700">
                 Owner
-                <input value={newOwner} onChange={(event) => setNewOwner(event.target.value)} className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal" />
+                <input
+                  value={newOwner}
+                  onChange={(event) => setNewOwner(event.target.value)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal"
+                />
               </label>
               <label className="block text-xs font-semibold text-slate-700">
                 Due
-                <input value={newDue} onChange={(event) => setNewDue(event.target.value)} className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal" />
+                <input
+                  value={newDue}
+                  onChange={(event) => setNewDue(event.target.value)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal"
+                />
               </label>
             </div>
-            {createError && <p role="alert" className="text-xs text-rose-700">{createError}</p>}
+            {createError && (
+              <p role="alert" className="text-xs text-rose-700">
+                {createError}
+              </p>
+            )}
             <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-              <button type="button" disabled={isCreating} onClick={() => setShowCreateOrder(false)} className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">Cancel</button>
-              <button type="submit" disabled={isCreating || assets.length === 0} className="rounded bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60">{isCreating ? 'Creating...' : 'Create Work Order'}</button>
+              <button
+                type="button"
+                disabled={isCreating}
+                onClick={() => setShowCreateOrder(false)}
+                className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isCreating || assets.length === 0}
+                className="rounded bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+              >
+                {isCreating ? 'Creating...' : 'Create Work Order'}
+              </button>
             </div>
           </form>
         </div>
       )}
-
     </div>
   );
 };

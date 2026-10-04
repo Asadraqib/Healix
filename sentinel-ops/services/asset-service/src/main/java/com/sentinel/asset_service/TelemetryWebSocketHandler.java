@@ -9,6 +9,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 @Component
 public class TelemetryWebSocketHandler extends TextWebSocketHandler {
+
   private final CopyOnWriteArrayList<WebSocketSession> sessions = new CopyOnWriteArrayList<>();
 
   @Override

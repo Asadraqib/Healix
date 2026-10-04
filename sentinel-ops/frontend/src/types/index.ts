@@ -32,7 +32,8 @@ export interface Asset {
 }
 
 export type WorkOrderSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-export type WorkOrderStatus = 'AUTO_GENERATED' | 'ASSIGNED' | 'SCHEDULED' | 'IN_PROGRESS' | 'RESOLVED';
+export type WorkOrderStatus =
+  'AUTO_GENERATED' | 'ASSIGNED' | 'SCHEDULED' | 'IN_PROGRESS' | 'RESOLVED';
 
 export interface WorkOrder {
   id: string;
@@ -117,4 +118,5 @@ export interface NotificationItem {
   read: boolean;
 }
 
-export type UserRole = 'ADMIN' | 'RELIABILITY_ENGINEER' | 'TECHNICIAN' | 'EXECUTIVE_VIEWER' | 'VIEWER';
+export type UserRole =
+  'ADMIN' | 'RELIABILITY_ENGINEER' | 'TECHNICIAN' | 'EXECUTIVE_VIEWER' | 'VIEWER';

@@ -1,0 +1,9 @@
+**/node_modules/**
+**/target/**
+**/dist/**
+**/.venv/**
+.runtime/**
+**/__pycache__/**
+frontend/package-lock.json
+**/.env*
+**/*.md

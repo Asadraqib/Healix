@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AuthFilter implements Filter {
+
   private final Key key;
   private static final Set<String> PUBLIC_PREFIXES = Set.of("/api/auth", "/actuator");
 
@@ -22,12 +23,14 @@ public class AuthFilter implements Filter {
   }
 
   @Override
-  public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {
+  public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
+    throws IOException, ServletException {
     HttpServletRequest request = (HttpServletRequest) req;
     HttpServletResponse response = (HttpServletResponse) res;
     String path = request.getRequestURI();
 
-    boolean isPublic = PUBLIC_PREFIXES.stream().anyMatch(path::startsWith) || "OPTIONS".equals(request.getMethod());
+    boolean isPublic =
+      PUBLIC_PREFIXES.stream().anyMatch(path::startsWith) || "OPTIONS".equals(request.getMethod());
     if (isPublic) {
       chain.doFilter(req, res);
       return;
@@ -39,23 +42,40 @@ public class AuthFilter implements Filter {
       return;
     }
     try {
-      var claims = Jwts.parser().verifyWith((javax.crypto.SecretKey) key).build().parseSignedClaims(token).getPayload();
+      var claims = Jwts.parser()
+        .verifyWith((javax.crypto.SecretKey) key)
+        .build()
+        .parseSignedClaims(token)
+        .getPayload();
       String role = String.valueOf(claims.get("role"));
       boolean write = !Set.of("GET", "HEAD", "OPTIONS").contains(request.getMethod());
       boolean engineer = Set.of("ADMIN", "RELIABILITY_ENGINEER").contains(role);
       boolean operator = engineer || "TECHNICIAN".equals(role);
-      boolean allowed = path.startsWith("/api/notifications") || (!write && !path.startsWith("/api/ai"))
-          || (path.startsWith("/api/ai") ? engineer
-          : (path.startsWith("/api/parts") || path.startsWith("/api/suppliers")) ? (path.endsWith("/consume") ? operator : engineer) : operator);
+      boolean allowed =
+        path.startsWith("/api/notifications") ||
+        (!write && !path.startsWith("/api/ai")) ||
+        (path.startsWith("/api/ai")
+          ? engineer
+          : path.startsWith("/api/parts") || path.startsWith("/api/suppliers")
+            ? path.endsWith("/consume")
+              ? operator
+              : engineer
+            : operator);
       if (!allowed) {
         response.setStatus(403);
         response.setContentType("application/json");
         response.getWriter().write("{\"message\":\"Your role does not permit this action\"}");
         return;
       }
-      if (write && "SIMULATION".equalsIgnoreCase(request.getHeader("X-Healix-Mode")) && !path.startsWith("/api/ai")) {
+      if (
+        write &&
+        "SIMULATION".equalsIgnoreCase(request.getHeader("X-Healix-Mode")) &&
+        !path.startsWith("/api/ai")
+      ) {
         response.setStatus(409);
-        response.getWriter().write("{\"message\":\"Simulation writes must remain in temporary browser state\"}");
+        response
+          .getWriter()
+          .write("{\"message\":\"Simulation writes must remain in temporary browser state\"}");
         return;
       }
     } catch (Exception e) {

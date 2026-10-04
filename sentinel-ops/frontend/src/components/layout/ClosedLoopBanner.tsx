@@ -18,14 +18,18 @@ export const ClosedLoopBanner: React.FC<ClosedLoopBannerProps> = ({ onViewWorkOr
           <Zap className="w-3.5 h-3.5 text-blue-600 shrink-0" />
           <span>
             <strong>Self-Healing Loop Triggered:</strong> {recentSelfHealingEvent.assetName} (
-            {recentSelfHealingEvent.triggerSensor} at {recentSelfHealingEvent.triggerValue} {recentSelfHealingEvent.unit}) &rarr; Auto-created{' '}
-            <strong>{recentSelfHealingEvent.generatedWorkOrderId}</strong>. Part {recentSelfHealingEvent.allocatedPartName} reserved.
+            {recentSelfHealingEvent.triggerSensor} at {recentSelfHealingEvent.triggerValue}{' '}
+            {recentSelfHealingEvent.unit}) &rarr; Auto-created{' '}
+            <strong>{recentSelfHealingEvent.generatedWorkOrderId}</strong>. Part{' '}
+            {recentSelfHealingEvent.allocatedPartName} reserved.
           </span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => onViewWorkOrder && onViewWorkOrder(recentSelfHealingEvent.generatedWorkOrderId)}
+            onClick={() =>
+              onViewWorkOrder && onViewWorkOrder(recentSelfHealingEvent.generatedWorkOrderId)
+            }
             className="text-xs font-semibold text-blue-700 hover:text-blue-900 underline flex items-center gap-1"
           >
             <span>View Ticket</span>
